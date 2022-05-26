@@ -1,6 +1,6 @@
 '''
 Simulate stationary time series data and apply Q-learning.
-Generate p dimensional states
+Generate p (currently only 2) dimensional states
 '''
 
 
@@ -9,7 +9,7 @@ import math
 
 # %%
 class simulate_data():
-    def __init__(self, N, T, changepoint, delta=1.0):
+    def __init__(self, N, T, p, changepoint, delta=1.0):
         '''
 
         :param N: number of trajectories / episodes
@@ -19,12 +19,14 @@ class simulate_data():
         # :param mean0: mean vector for the initial state S_0
         # :param cov0: covariance matrix for the initial state S_0
         '''
+        print('00')
         self.N = N
         self.T = T
+        self.p = p
         # initialize A_t
         self.At = 1
         # initialize S_t
-        self.St = 1
+        self.St = np.ones(p)
         # initialize R_t
         # self.Rt = 0.0
         self.Td2 = changepoint
@@ -33,42 +35,77 @@ class simulate_data():
             self.Td2_minus_delta = int(changepoint - delta*T) #int(T / 2)
             self.Td2_plus_delta = int(changepoint + delta*T)
 
-
+    def gen_tsM(self, coef = [[0.5, 0.5, 0.5],[0.5,0.5,0.75]]):
+        M1 = (coef[0][0]-coef[0][1])* np.eye(self.p) + coef[0][1]*np.ones([self.p, self.p])
+        Avec = np.ones(self.p)
+        for i in range(self.p):
+            if divmod(i, 2)[1] == 0:
+                Avec[i] = coef[0][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[0][2] * (1 - 2*self.At)
+        M1 = M1 + np.diag(Avec)
+        
+        M2 = (coef[1][0]-coef[1][1])* np.eye(self.p) + coef[1][1]*np.ones([self.p, self.p])
+        Avec = np.ones(self.p)
+        for i in range(self.p):
+            if divmod(i, 2)[1] == 0:
+                Avec[i] = coef[1][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[1][2] * (1 - 2*self.At)
+        M2 = M2 + np.diag(Avec)
+        M = [None] * 2
+        M[0] = M1
+        M[1] = M2
+        return M
+    
     def transition_homo(self, mean, cov):
         '''
         Generate time-homogeneous transition at time t
         # :param t: the time at which we generate a transition
         :return: a scalar of state
         '''
-        return 0.5 * (2.0 * self.At - 1.0) * self.St + np.random.normal(mean, cov, 1)
+        return 0.5 * (2.0 * self.At - 1.0) * np.sum(self.St) + np.random.normal(mean, cov, 1)
 
 
-    def transition_pwconstant2(self, t, mean, cov, coef =[[0.5, 0.5, 0.5, -0.5],[0.5,1.5,0.5,0.5]], signal = 0):
+    def transition_pwconstant2(self, t, mean, cov, coef = [[0.5, 0.5, 0.5],[0.5,0.5,0.75]]):
         '''
         Generate time-homogeneous transition at time t
         # :param t: the time at which we generate a transition
         :return: a scalar of state
         '''
+        # if M is None:
+        #     coef = [[0.5, 0.5, 0.5],[0.5,0.5,0.75]]
+        M1 = (coef[0][0]-coef[0][1])* np.eye(self.p) + coef[0][1]*np.ones([self.p, self.p])
+        Avec = np.ones(self.p)
+        for i in range(self.p):
+            if divmod(i, 2)[1] == 0:
+                Avec[i] = coef[0][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[0][2] * (1 - 2*self.At)
+        M1 = M1 + np.diag(Avec)
+        
+        M2 = (coef[1][0]-coef[1][1])* np.eye(self.p) + coef[1][1]*np.ones([self.p, self.p])
+        Avec = np.ones(self.p)
+        for i in range(self.p):
+            if divmod(i, 2)[1] == 0:
+                Avec[i] = coef[1][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[1][2] * (1 - 2*self.At)
+        M2 = M2 + np.diag(Avec)
+        M = [None] * 2
+        M[0] = M1
+        M[1] = M2
+        # if t == 60:
+            # print('M2',M2)
+            # print('coef[1]',coef[1])
+            # print('self.St',self.St)
+            # print('self.At',self.At)
+            # print('M[1].dot(self.St)+ np.random.normal(mean, cov, self.p)',M[1].dot(self.St)+ np.random.normal(mean, cov, self.p))
         if t < self.Td2:
-            return (coef[0][1] *self.St + coef[0][2] * (2.0 * self.At - 1.0) 
-                    + coef[0][3] * self.St * (2.0 * self.At - 1.0) + coef[0][0] 
-                    + np.random.normal(mean, cov, 1))
+            return (M[0].dot(self.St) + np.random.normal(mean, cov, self.p))
         elif t >= self.Td2:
-            # print("t>Td2")
-            # tmp =(coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
-            #         + coef[1][3] * self.St * (2.0 * self.At - 1.0) 
-            #         + coef[1][0] + signal + np.random.normal(mean, cov, 1))
-            # print(tmp)
-            return (coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
-                    + coef[1][3] * self.St * (2.0 * self.At - 1.0) 
-                    + coef[1][0] + signal + np.random.normal(mean, cov, 1))
-            #return coef * self.St * (2.0 * self.At - 1.0) + signal + np.random.normal(mean, cov, 1)
-        # if t < self.Td2:
-        #     return 1*self.St + self.At -1 * coef * self.St * self.At  + np.random.normal(mean, cov, 1)
-        # elif t >= self.Td2:
-        #     return 1*self.St + self.At + coef * self.St * self.At  + signal + np.random.normal(mean, cov, 1)
-            #return coef * self.St * (2.0 * self.At - 1.0) + signal + np.random.normal(mean, cov, 1)
-
+            return (M[1].dot(self.St)+ np.random.normal(mean, cov, self.p))
+          
 
     def transition_smooth2(self, t, mean, cov, w=1.0, coef = 0.5, signal= 0):
         '''
@@ -76,11 +113,34 @@ class simulate_data():
         t = the time at which we generate a reward
         :return: a scalar of reward at time t
         '''
+        M1 = (coef[0][0]-coef[0][1])* np.eye(self.p) + coef[0][1]*np.ones(self.p)
+        Avec = np.ones([1, self.p])
+        for i in range(self.p):
+            if divmod(i, 2) == 0:
+                Avec[i] = coef[0][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[0][2] * (1 - 2*self.At)
+        M1 = M1 + np.diag(Avec)
+        
+        M2 = (coef[1][0]-coef[1][1])* np.eye(self.p) + coef[1][1]*np.ones(self.p)
+        Avec = np.ones([1, self.p])
+        for i in range(self.p):
+            if divmod(i, 2) == 0:
+                Avec[i] = coef[1][2] * (2*self.At - 1)
+            else:
+                Avec[i] =  coef[1][2] * (1 - 2*self.At)
+        M2 = M2 + np.diag(Avec)
+        if t < self.Td2:
+            return (M1.dot(self.St) + np.random.normal(mean, cov, 1))
+        elif t >= self.Td2:
+            return (M2.dot(self.St)+ np.random.normal(mean, cov, 1))
+          
+            
         def R1(t):
-            return 1*self.St + self.At -1 * coef * self.St * (2.0 * self.At - 1.0) 
+            return M1.dot(self.St) 
 
         def R2(t):
-            return 1*self.St + self.At + coef * self.St * (2.0 * self.At - 1.0) + signal # return coef * self.St * (2.0 * self.At - 1.0) + signal
+            return M2.dot(self.St)
 
         if t < self.Td2_minus_delta+1: # the first piece
             # print('first piece')
@@ -104,7 +164,7 @@ class simulate_data():
         :return: a scalar of reward at time t
         '''
         # print('self.St[0]', self.St[0], '0.25*self.St[0]**2', 0.25*self.St[0]**2, '4*self.St[0]',4*self.St[0])
-        return 0.25*self.St[0]**2 * (2.0 * self.At - 1.0) + 4*self.St[0]
+        return 0.25*np.sum(self.St[0])**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St[0])
         # return 0.5 * self.St[0]
 
 
@@ -117,9 +177,9 @@ class simulate_data():
 
         if t < self.Td2:
             # return -3 * self.St[0] #* (2.0 * self.At - 1.0)
-            return -1.5 * (2.0 * self.At - 1.0) * self.St[0] #* (2.0 * self.At - 1.0)
+            return -1.5 * (2.0 * self.At - 1.0) * np.sum(self.St[0]) #* (2.0 * self.At - 1.0)
         elif t >= self.Td2:
-            return (2.0 * self.At - 1.0) * self.St[0]#-1.0 * self.St[0] + 0.5 * (2.0 * self.At - 1.0)
+            return (2.0 * self.At - 1.0) * np.sum(self.St[0])#-1.0 * self.St[0] + 0.5 * (2.0 * self.At - 1.0)
 
 
     def reward_smooth2(self, t, w=1.0):
@@ -188,7 +248,7 @@ class simulate_data():
         T1 = self.T - 1
         # set seed
         np.random.seed(seed)
-        States = np.zeros([self.N, T1-T0 + 1, 1])  # S[i][t]
+        States = np.zeros([self.N, T1-T0 + 1, self.p])  # S[i][t]
         Rewards = np.zeros([self.N, T1-T0])  # R[i,t]
         Actions = np.zeros([self.N, T1-T0])  # Actions[i,t]
 
@@ -200,14 +260,13 @@ class simulate_data():
 
         # def sigmoid(x):
         #     return 1.0 / (1.0 + np.exp(-x))
-
         if optimal_policy_model is None:
             t = 0  # time 0
             for i in range(self.N): # for each individual
 
                 # generate initial state S_i0
                 if S0 is None:
-                    self.St = np.random.normal(mean0, cov0, 1)
+                    self.St = np.random.normal(mean0, cov0, self.p)
                     # print(self.St)
                     States[i, 0, :] = self.St
                 else:
@@ -250,7 +309,7 @@ class simulate_data():
 
                 # generate initial state S_i0
                 if S0 is None:
-                    self.St = np.random.normal(mean0, cov0, 1)
+                    self.St = np.random.normal(mean0, cov0, self.p)
                     # print(self.St)
                     States[i, 0, :] = self.St
                 else:
