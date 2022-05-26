@@ -676,4 +676,4 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
             IC_min = out.IC
             K_min = K
     tunningres = namedtuple("tunningres", ["K", "IC", "best_model", "models"])
-    return tunningres(K_min, IC_min, out[K_list.index(K_min)], res)
+    return tunningres(K_min, IC_min, res[K_list.index(K_min)], res)
