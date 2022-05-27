@@ -19,7 +19,6 @@ class simulate_data():
         # :param mean0: mean vector for the initial state S_0
         # :param cov0: covariance matrix for the initial state S_0
         '''
-        print('00')
         self.N = N
         self.T = T
         self.p = p
@@ -228,7 +227,7 @@ class simulate_data():
             return f2(x)
         # return 0 * x
 
-    def simulate(self, mean0, cov0, transition_function, reward_function, seed=0,
+    def simulate(self, mean0, cov0, transition_function, reward_function, #seed=0,
                  S0=None, A0=None, T0=0, T1=99, optimal_policy_model=None):
         '''
         simulate states, rewards, and action data
@@ -247,7 +246,7 @@ class simulate_data():
         T0 = 0 
         T1 = self.T - 1
         # set seed
-        np.random.seed(seed)
+        # np.random.seed(seed)
         States = np.zeros([self.N, T1-T0 + 1, self.p])  # S[i][t]
         Rewards = np.zeros([self.N, T1-T0])  # R[i,t]
         Actions = np.zeros([self.N, T1-T0])  # Actions[i,t]
