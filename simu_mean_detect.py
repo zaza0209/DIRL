@@ -697,7 +697,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     IC_model = []
     loss_model = []
     for K in K_list:
-        print("K",K)
+        # print("K",K)
         out = fit(States, Actions, example, init, kappa, epsilon, K, 
                 C1, C2, alpha, df, max_iter, init_cluster_range, 
                 max_iter_gmr, seed, nthread, C)
