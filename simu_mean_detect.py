@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 import numpy as np
+import matplotlib.pyplot as plt
 from collections import namedtuple
 from scipy.linalg import block_diag
 from scipy.stats import chi2, norm
@@ -122,6 +123,8 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     '''
     p = States.shape[2]
     if g_index is None:
+        # print(N)
+        # print(K)
         g_index = np.random.choice(range(K), size = N)
     # g_index = np.append(np.zeros(int(N/2)), np.ones(int(N/2)))
             
@@ -160,10 +163,10 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     for m in range(max_iter_gmr):
         # print("---gmr m,",m,"---")
         # print(res.coef_[:6])
+        err_all = np.zeros([N, K])
         for i in range(N):
             Xistack = np.kron(np.eye(K*p,dtype=int),Xi[i])
             yhat = res.predict(Xistack)
-            err_all = np.zeros([N, K])
             err = [[] for i in range(K)]
             t = Xi[i].shape[0]
             for k in range(K):
@@ -172,12 +175,15 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
 
             err = np.sum(np.array(err), axis=1)
             err_all[i, :] = err.reshape(K)
+            # print('err_all[',i,', :]', err_all[i, :])
             g_index_new[i] = np.where(err==min(err))[0][0]
             # plt.plot(g_index_new)
             loss = loss - 1 * min(err)/t
         loss = loss * np.mean(T - changepoints - 1)
+        # plt.figure()
+        # plt.plot(g_index_new)
+        # plt.show()
         # print("g_index_new", g_index_new)
-        # print("g_index", g_index)
         # print("np.prod(g_index == g_index_new)",np.prod(g_index == g_index_new),g_index == g_index_new)
         if np.prod(g_index == g_index_new):
             break
@@ -186,10 +192,12 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             g_index = g_index_new.copy()
             # keep the cluster size unchanged
             if np.unique(g_index).shape[0] < K:
-                # print("cluster size changed",(np.setdiff1d(np.unique(g_index), np.array(range(K))).tolist()))
-                for k in (np.setdiff1d(np.unique(g_index), np.array(range(K))).tolist()):
+                # print("cluster size changed",( np.setdiff1d(np.array(range(K)),np.unique(g_index))))
+                # print('err_all', err_all)
+                for k in (np.setdiff1d(np.array(range(K)),np.unique(g_index)).tolist()):
+                    # print('k',k,'np.where(err_all[:,k] == min(err_all[:,k]))',np.where(err_all[:,k] == min(err_all[:,k])))
                     g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
-                # print("g_index_new", set(g_index))
+                # print("g_index_new", g_index)
                  
             mat_list = [[] for i in range(K)]
             y = [[] for i in range(K)]
@@ -203,6 +211,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
                 mat_list[g].extend(mat.tolist())
                 y[g].extend(States[i, changepoints.item(i)+1:,:].tolist())
             for g in range(K):
+                # print('g',g)
                 y[g] = np.array(y[g]).T.reshape(-1,1)
                 mat_list[g] = np.vstack(np.array(mat_list[g])) 
                 mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g]) 
@@ -626,13 +635,16 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
     :param inti: initial estimator, "changepoints", detect changepoints for each trajectrory separately, "clusters", kemans
     '''
     np.random.seed(seed)
+    np.random.seed(seed)
     N = States.shape[0]
+    # print(N)
     T = States.shape[1]
     p = States.shape[2]
     if kappa is None:
         kappa = T
     if df is None:
         df = (2+2*p)*p
+    #%%
     def changepoint_detect(g_index, States, N, T,  kappa, epsilon, example, Actions=Actions, 
                               cusum_forward=None, cusum_backward=None, C1=C1, 
                               C2=C2, alpha = alpha, df = df,nthread=nthread):
@@ -652,6 +664,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
             return changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=Actions, 
                                          cusum_forward=None, cusum_backward=None,
                                          C1=None, C2=None, alpha=alpha, df=df,nthread=nthread)
+ 
     def clustering(States, N, T, K, changepoints,example, Actions=None, g_index=None, max_iter_gmr = 50):
         if example == "mean" or example == "marginal":
             # print('cluster mean')
@@ -660,8 +673,9 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
         #     return clustering_marginal_dis(States, N, T, K, changepoints, Actions, g_index, max_iter_gmr)
         elif example == "cdist":
             # print('cluster dis')
+            # print("N",N)
             return gmr(States, N, T, K, changepoints, Actions, g_index, max_iter_gmr)
-    
+    #%%
     if example == "mean":
         cusum_forward = np.cumsum(States, axis = 1)/(np.tile((range(1,T+1)), [N, 1]).reshape([N, T, p]))
         cusum_backward = np.flip(np.cumsum(np.flip(States, axis=1),axis = 1)/(np.tile((range(1,T+1)), [N, 1]).reshape([N, T, p])), axis = 1)
@@ -691,7 +705,6 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     
     #param: K_list: list object
     '''
-    np.random.seed(seed)
     IC_max = 0
     K_max = None
     res = []
@@ -699,9 +712,11 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     loss_model = []
     for K in K_list:
         # print("K",K)
+        #%%
         out = fit(States, Actions, example, init, kappa, epsilon, K, 
                 C1, C2, alpha, df, max_iter, init_cluster_range, 
                 max_iter_gmr, seed, nthread, C)
+        #%%
         res.append(out)
         IC_model.append(out.IC)
         loss_model.append(out.loss)
