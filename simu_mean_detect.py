@@ -159,6 +159,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     loss = 0
     for m in range(max_iter_gmr):
         # print("---gmr m,",m,"---")
+        # print(res.coef_[:6])
         for i in range(N):
             Xistack = np.kron(np.eye(K*p,dtype=int),Xi[i])
             yhat = res.predict(Xistack)
@@ -182,7 +183,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             break
         elif not np.prod(g_index == g_index_new) or m == max_iter_gmr - 1:
             loss = 0
-            g_index = g_index_new
+            g_index = g_index_new.copy()
             # keep the cluster size unchanged
             if np.unique(g_index).shape[0] < K:
                 # print("cluster size changed",(np.setdiff1d(np.unique(g_index), np.array(range(K))).tolist()))
@@ -208,7 +209,6 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
                 
             X = block_diag(*mat_list)    
             y = np.vstack(y)
-            reg = LinearRegression(fit_intercept=False)
             res=reg.fit(X, y)
     return g_index, loss
         
@@ -587,7 +587,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     for m in range(1, max_iter):
         # print("======= m", m, "=========")
         if m == 1:
-            g_index,loss = clustering(States=States, Actions=Actions,example=example, 
+            g_index,loss = clustering(States=States, Actions=Actions,example=example,
                                  N=N, T=T, K=K,changepoints=changepoints_0)
         else:
             g_index,loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index,
@@ -609,7 +609,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
             iter_num = m
             break
         else:
-            changepoints_0 = changepoints
+            changepoints_0 = changepoints.copy()
         iter_num = m
     changepoint_list = changepoint_list[:, :(m+1)]
     # print(changepoints_0)
@@ -691,6 +691,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     
     #param: K_list: list object
     '''
+    np.random.seed(seed)
     IC_max = 0
     K_max = None
     res = []
