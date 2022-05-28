@@ -89,13 +89,13 @@ def clustering_marginal_dis(States, N, T, K, changepoints,Actions=None, g_index=
     
     # iteration begin
     for m in range(max_iter_gmr):
-        print('m',m)
+        # print('m',m)
         for i in range(N):
             err = []
             for k in range(K):
                 err.append(np.linalg.norm((yi[i] - mean[k]), ord=2)**2/var[k])
             g_index_new[i] = err.index(min(err))
-        print('g_index_new',g_index_new)
+        # print('g_index_new',g_index_new)
         if np.prod(g_index == g_index_new):
             break
         else:
@@ -126,6 +126,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     # g_index = np.append(np.zeros(int(N/2)), np.ones(int(N/2)))
             
     g_index = g_index.astype(int)
+    # print('gmr: beginning g_index', g_index)
     changepoints = changepoints.astype(int)
     
     mat_list = [[] for i in range(K)]
@@ -153,10 +154,11 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     
     reg = LinearRegression(fit_intercept=False) # coef: [beta1, beta2, ..., betaK] for K clusters
     res=reg.fit(X, y)
-    g_index_new = g_index
+    g_index_new = np.zeros(g_index.shape, dtype=int)
     # iteration begin
     loss = 0
     for m in range(max_iter_gmr):
+        # print("---gmr m,",m,"---")
         for i in range(N):
             Xistack = np.kron(np.eye(K*p,dtype=int),Xi[i])
             yhat = res.predict(Xistack)
@@ -173,16 +175,21 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             # plt.plot(g_index_new)
             loss = loss - 1 * min(err)/t
         loss = loss * np.mean(T - changepoints - 1)
+        # print("g_index_new", g_index_new)
+        # print("g_index", g_index)
+        # print("np.prod(g_index == g_index_new)",np.prod(g_index == g_index_new),g_index == g_index_new)
         if np.prod(g_index == g_index_new):
             break
-        else:
+        elif not np.prod(g_index == g_index_new) or m == max_iter_gmr - 1:
             loss = 0
             g_index = g_index_new
             # keep the cluster size unchanged
             if np.unique(g_index).shape[0] < K:
+                # print("cluster size changed",(np.setdiff1d(np.unique(g_index), np.array(range(K))).tolist()))
                 for k in (np.setdiff1d(np.unique(g_index), np.array(range(K))).tolist()):
                     g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
-                    
+                # print("g_index_new", set(g_index))
+                 
             mat_list = [[] for i in range(K)]
             y = [[] for i in range(K)]
             for i in range(int(N)):
@@ -253,6 +260,7 @@ def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
     detect change in marginal distribution
     '''
     K = len(set(g_index))    
+    print("K",K)
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
     maxcusum_list = np.zeros(K)
@@ -404,7 +412,7 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
        cusum_tmp = H0-H1
        return cusum_tmp
     for k in range(K):
-        print("k",k)
+        # print("k",k)
         maxcusum = 0
         cusum_list = []
         if nthread !=0: # parallel
@@ -412,7 +420,10 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
             tauk[k] = int(T-epsilon*T)-1- res.index(np.max(res))
             maxcusum= np.max(res)
         else: # do not parallel
+            # print("no parallel")
+            print(g_index)
             for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1):
+                # print("u",u, "K",K)
                 cusum_tmp = run_one(u)
                 cusum_list.append(cusum_tmp[0])
                 # cusum_list.index(max(cusum_list))
@@ -574,13 +585,14 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     changepoint_list[:, [0]] = changepoints_0.reshape(N, 1)
     iter_num = 0
     for m in range(1, max_iter):
-        print("m", m)
+        # print("======= m", m, "=========")
         if m == 1:
             g_index,loss = clustering(States=States, Actions=Actions,example=example, 
                                  N=N, T=T, K=K,changepoints=changepoints_0)
         else:
             g_index,loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index,
                                  N=N, T=T, K=K,changepoints=changepoints_0)
+        # print("g_index update",g_index)
         out=changepoint_detect(g_index = g_index,States=States, Actions=Actions, example=example,N=N, T=T, kappa=kappa, epsilon=epsilon,
                                  cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                  C1=C1, C2=C2,nthread=nthread)
@@ -589,11 +601,11 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
         changepoint_list[:, [m]] = changepoints.reshape(N, 1)
         if (m != 1 and np.prod(changepoints == changepoints_0)) or m == max_iter-1:
             if m == max_iter-1 and np.sum(changepoints != changepoints_0):
-                print("K", str(K),": Not converge")
+                # print("K", str(K),": Not converge")
                 # in case that changepoint detection does not converge
                 loss = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
             ic = ut.IC(loss, changepoints, g_index, N, T, K, C)
-            print("loss", loss, "ic", ic)
+            # print("loss", loss, "ic", ic)
             iter_num = m
             break
         else:
@@ -671,7 +683,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
         
     return result
     
-def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2, 
+def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1,
         C1=1, C2=1/2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
         max_iter_gmr = 50, seed = 1, nthread=0, C=10):
     '''
