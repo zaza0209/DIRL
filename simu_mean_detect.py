@@ -184,19 +184,29 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         # plt.plot(g_index_new)
         # plt.show()
         # print("g_index_new", g_index_new)
-        # print("np.prod(g_index == g_index_new)",np.prod(g_index == g_index_new),g_index == g_index_new)
+        # print("np.prod(g_index == g_index_new)",np.prod(g_index == g_index_new))
         if np.prod(g_index == g_index_new):
             break
         elif not np.prod(g_index == g_index_new) or m == max_iter_gmr - 1:
             loss = 0
             g_index = g_index_new.copy()
             # keep the cluster size unchanged
+            # print('np.unique(g_index).shape[0]',np.unique(g_index).shape[0],'K',K)
             if np.unique(g_index).shape[0] < K:
                 # print("cluster size changed",( np.setdiff1d(np.array(range(K)),np.unique(g_index))))
                 # print('err_all', err_all)
+                i_tmp = -1*np.ones(len((np.setdiff1d(np.array(range(K)),np.unique(g_index)).tolist())))
+                z=0
                 for k in (np.setdiff1d(np.array(range(K)),np.unique(g_index)).tolist()):
+                    # print('i_tmp[',z,']',i_tmp[z],np.where(err_all[:,k] == min(err_all[:,k])))
+                    i_tmp[z] = np.where(err_all[:,k] == min(err_all[:,k]))[0]
+                    z = z+1
+                    if np.where(err_all[:,k] == min(err_all[:,k])) in i_tmp:
+                        g_index[np.where(err_all[:,k] == np.partition(err_all[:,k], 1)[1])] = k
+                    else:
+                        g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
                     # print('k',k,'np.where(err_all[:,k] == min(err_all[:,k]))',np.where(err_all[:,k] == min(err_all[:,k])))
-                    g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
+                    # g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
                 # print("g_index_new", g_index)
                  
             mat_list = [[] for i in range(K)]
@@ -645,7 +655,8 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
 #%% fit
 def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2, 
         C1=1, C2=1/2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
-        max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,g_index_init = None):
+        max_iter_gmr = 50, seed = 1, nthread=0, C=10,
+        changepoints_init=None,g_index_init = None,clustering_warm_start=1):
     '''
     :param example: "mean", "conditional dis"
     :param inti: initial estimator, "changepoints", detect changepoints for each trajectrory separately, "clusters", kemans
@@ -703,19 +714,20 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
         result = changepointsNclustering(example, clustering, changepoint_detect, 
                                          States, Actions, N, T, p,epsilon, kappa, K, 
                                          cusum_forward,cusum_backward, C1, C2,
-                                         max_iter, max_iter_gmr, nthread, C, changepoints_init)
+                                         max_iter, max_iter_gmr, nthread, C, changepoints_init, clustering_warm_start)
 
     else:
         result = clusteringNchangepoints(example, clustering, changepoint_detect,
                                          States, Actions, N, T, p, epsilon, kappa, 
                                          K, cusum_forward, cusum_backward, C1, C2, 
-                                         max_iter, init_cluster_range, nthread, C,g_index_init) 
+                                         max_iter, init_cluster_range, nthread, C,g_index_init,clustering_warm_start) 
         
     return result
     
 def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1,
         C1=1, C2=1/2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
-        max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,g_index_init = None):
+        max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,
+        g_index_init = None,clustering_warm_start=1):
     '''
     Tuning the best K for clustering initialization from a list
     
@@ -726,13 +738,15 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     res = []
     IC_model = []
     loss_model = []
+    #%%
     for K in K_list:
         # print("K",K)
-        #%%
+     
         out = fit(States, Actions, example, init, kappa, epsilon, K, 
                 C1, C2, alpha, df, max_iter, init_cluster_range, 
-                max_iter_gmr, seed, nthread, C,changepoints_init,g_index_init)
-        #%%
+                max_iter_gmr, seed, nthread, C,changepoints_init,g_index_init,
+                clustering_warm_start)
+      
         res.append(out)
         IC_model.append(out.IC)
         loss_model.append(out.loss)
@@ -742,6 +756,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
         if out.IC > IC_max:
             IC_max = out.IC
             K_max = K
+            #%%
     tunningres = namedtuple("tunningres", ["K", "IC", "best_model", "models", 
                                            "IC_model", "loss_model"])
     return tunningres(K_max, IC_max, res[K_list.index(K_max)], res, IC_model, 
