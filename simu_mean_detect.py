@@ -199,12 +199,18 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
                 z=0
                 for k in (np.setdiff1d(np.array(range(K)),np.unique(g_index)).tolist()):
                     # print('i_tmp[',z,']',i_tmp[z],np.where(err_all[:,k] == min(err_all[:,k])))
-                    i_tmp[z] = np.where(err_all[:,k] == min(err_all[:,k]))[0]
+                    smallest = 0
+                    assign_ind = np.where(err_all[:,k] == min(err_all[:,k]))[0]
+                    # print("assign_ind", assign_ind)
+                    while (assign_ind in i_tmp) or (np.sum(g_index == g_index[assign_ind])==1):
+                        smallest = smallest+1
+                        # print(smallest)
+                        assign_ind = np.where(err_all[:,k] == np.partition(err_all[:,k], smallest)[smallest])[0]
+                        # print("assign_ind", assign_ind)
+                        
+                    g_index[assign_ind] = k
+                    i_tmp[z]=assign_ind
                     z = z+1
-                    if np.where(err_all[:,k] == min(err_all[:,k])) in i_tmp:
-                        g_index[np.where(err_all[:,k] == np.partition(err_all[:,k], 1)[1])] = k
-                    else:
-                        g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
                     # print('k',k,'np.where(err_all[:,k] == min(err_all[:,k]))',np.where(err_all[:,k] == min(err_all[:,k])))
                     # g_index[np.where(err_all[:,k] == min(err_all[:,k]))] = k
                 # print("g_index_new", g_index)
@@ -366,7 +372,7 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
     detect change in conditional distribution, no variance estimation
     '''
     p = States.shape[2]
-    K = len(set(g_index))    
+    K = len(set(g_index.tolist()))    
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
     maxcusum_list = np.zeros(K)
@@ -460,8 +466,16 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
                     # plt.plot(cusum_list)
         # print('np.sum(g_index==k)',g_index==k,np.sum(g_index==k))
         # print(g_index)
+        # print(maxcusum)
+        # print('chi2.ppf(',1-alpha,', df) * np.log10(T * np.sum(g_index==k))**2')
+        # print('df',df,'np.sum(g_index==k)')
+        # print('np.sum(g_index==k)',np.sum(g_index==k))
+              
+        # print('np.log10(T * np.sum(g_index==k))',np.log10(T * np.sum(g_index==k)))
+        # print('chi2.ppf(1-alpha, df)',chi2.ppf(1-alpha, df))
+        # print(chi2.ppf(1-alpha, df) * np.log10(T * np.sum(g_index==k))**2)
         if maxcusum < chi2.ppf(1-alpha, df) * np.log10(T * np.sum(g_index==k))**2:
-            tauk[k] = int(T - kappa + epsilon*T) + 1
+            tauk[k] = 0
         changepoints[(g_index == k), :] = tauk[k]   
     changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
@@ -561,9 +575,9 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
                             g_index_init = None,clustering_warm_start=1):
     if g_index_init is None:
         if init_cluster_range is None:
-            init_cluster_range = int(3*T/4) - 1
+            init_cluster_range = int(T/4) - 1
         changepoints_0 =  np.tile(init_cluster_range, N)
-        g_index_0 = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K, 
+        g_index_0, loss = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K, 
                                changepoints=changepoints_0)
     else:
         g_index_0 = g_index_init
@@ -572,7 +586,8 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
     # changepoint_list[:, [0]] = changepoints_0.reshape(N, 1)
     iter_num=0
     for m in range(max_iter):
-        out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N, T=T, kappa=kappa,
+        out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N,
+                               T=T, kappa=kappa,
                                epsilon=epsilon, cusum_forward=cusum_forward, 
                                cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
         changepoints = np.array(out[0])
