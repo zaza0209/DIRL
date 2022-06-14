@@ -89,7 +89,7 @@ def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 
     #                     model.predict(q1.States1_action1)]).max(0)
 
     # temporal difference error
-    n_actions = len(np.unique(q1.Actions))
+    # n_actions = len(np.unique(q1.Actions))
     predicted_q_current = np.zeros(shape=q1.Rewards_vec.shape)
     # print('q1.action_indices',q1.action_indices)
     # print('q1.States0',q1.States0)
@@ -99,7 +99,7 @@ def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 
         # print("q_function_list[",a,"] =",q_function_list[a])
         # print("q1.States0[",a,"] =",q1.States0[a])
         # a_q1=np.where(np.unique(q1.Actions) == a)[0].item()
-        predicted_q_current[q1.action_indices[a]] = q_function_list[a].predict(q1.States0[a])
+        predicted_q_current[q1.action_indices[int(a)]] = q_function_list[int(a)].predict(q1.States0[int(a)])
     tde = Rewards_test.flatten() + gamma * Q_max - predicted_q_current
     if metric == 'kerneldist':
         def distance_function_state(x1,x2):
@@ -255,7 +255,7 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
         if not kernel_regression: # regular FQI
             # print("regular")
             def run_one(fold):
-                return train_test(States, Rewards, Actions, test_index=test_indices[fold], num_basis=num_basis, bandwidth=bandwidth,
+                return train_test(States, Rewards, Actions, test_index=test_indices[fold], num_basis=num_basis, bandwidth=1,
                            qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
         else:
             # print("kernel")

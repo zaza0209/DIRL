@@ -23,7 +23,7 @@ from joblib import Parallel, delayed
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 import simu.simulate_data_pd as sim
 # from functions.evaluation_separateA import *
-from simu.ev2 import *
+from simu.evaluation import *
 '''
 Arguments passed:
 - seed: int. random seed to generate data
@@ -76,19 +76,20 @@ qmodel = 'polynomial'
 degree = 1
 # true change point
 time_change_pt_true = int(50)
-# number of new individuals to simulate to calculate the discounted reward in infinite horizon
+# number of new individuals = N * N_factor to simulate to calculate the discounted reward in infinite horizon
 N_factor = 8
-# number of new time points to simulate to calculate the discounted reward in infinite horizon
+# number of new time points = changepoint + T1_intercept to simulate to calculate the discounted reward in infinite horizon
 T1_intercept = 200
 
 
 plot_value = seed < 5
 
 # %% parameters to simulate data
+N=36
 # terminal timestamp
 T = 100
 # dimension of X0
-p = 1
+p = 2
 # mean vector of X0
 mean0 = 0
 # diagonal covariance of X0
@@ -99,8 +100,9 @@ mean = 0
 cov = 0.25
 
 # oracle change points and cluster membership
-g_index_true = np.append(np.zeros(int(N/3)), np.ones(int(N/3)))
-g_index_true = np.append(g_index_true , 2*np.ones(int(N/3)))
+g_index_true = np.append(np.append(np.zeros(int(N/3)), np.ones(int(N/3))), 2*np.ones(int(N/3)))
+changepoints_true = np.append(np.append(89*np.ones(int(N/3)), 79*np.ones(int(N/3))), 69*np.ones(int(N/3)))
+
 #%% environment setup
 append_name = '_N' + str(N) + '_1d'
 if not os.path.exists('data'):
@@ -118,10 +120,10 @@ stdoutOrigin = sys.stdout
 sys.stdout = open("log_" + type_est + ".txt", "w")
 
 num_threads = 3
-time_terminal = T
+# time_terminal = T
 
 #%% generate data for estimating the optimal policy
-def simulate(changepoints_true, N=25, optimal_policy_model = None, S0=None, A0=None, T0=0, T1=T_new):
+def simulate(changepoints_true, N=25, optimal_policy_model = None, S0=None, A0=None, T0=0, T1=T):
     w = 0.01
     delta = 1 / 10
     States = np.zeros([N, T, p])
@@ -161,7 +163,13 @@ def simulate(changepoints_true, N=25, optimal_policy_model = None, S0=None, A0=N
     return States, Rewards, Actions
 
 
-# States, Rewards, Actions = simulate(N=N, optimal_policy_model = None, T0=0, T1=T)
+# States, Rewards, Actions = simulate(changepoints_true, N=N, optimal_policy_model = None, T0=0, T1=T)
+States = np.zeros([N,T,p])
+Rewards = np.zeros([N,T-1])
+Actions = np.zeros([N,T-1])
+for i in range(N):
+    States[i,:,:], Rewards[i,:], Actions[i,:] = simulate(changepoints_true[i], N=1, optimal_policy_model = None, T0=0, T1=T)
+
 basemodel = DecisionTreeRegressor(random_state=seed)
 
 
@@ -265,7 +273,7 @@ if type_est == 'oracle':
     for g in np.unique(g_index_true):
         cp_g = int(changepoints_true[np.where(g_index_true == g)[0][0]])
         estimated_value = estimate_value(States[g_index_true == g, cp_g+1:,:], Rewards[g_index_true == g, cp_g+1:], Actions[g_index_true == g, cp_g+1:], param_grid, model,changepoints_true=cp_g)
-        estimated_value_oracle_cluster.append(estimated_value)
+        estimated_value_oracle.append(estimated_value)
     if plot_value:
         fig = plt.hist(estimated_value_oracle_cluster, bins = 50)
         plt.xlabel('Values')
