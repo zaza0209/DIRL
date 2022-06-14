@@ -1,8 +1,11 @@
+'''
+Compute the test statistic proposed in change point detection.
+Fit distinct models for Q function approximation for different actions
+'''
+
 # Import required libraries
 import numpy as np
 from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import Lasso
-from sklearn.tree import DecisionTreeRegressor
 from collections import namedtuple
 from sklearn.preprocessing import PolynomialFeatures
 import scipy.sparse as sp
@@ -14,22 +17,8 @@ from scipy.spatial.distance import pdist
 from joblib import Parallel, delayed
 from bisect import bisect_right
 import csv
-import warnings
-warnings.filterwarnings("error")
 
-
-
-# %% create polynomial features without interaction terms
-class PolynomialFeatures_no_interaction():
-    def __init__(self, degree, include_bias):
-        self.degree = degree
-        self.include_bias = include_bias
-
-    def fit_transform(self, X):
-        new_X = np.hstack([X ** (i + 1) for i in range(self.degree)])
-        if self.include_bias:
-            new_X = np.hstack([np.ones(shape=(new_X.shape[0],1)), new_X])
-        return new_X
+# from . import select_num_basis as cv
 
 
 # %% fitted Q iteration
@@ -37,8 +26,8 @@ class q_learning():
     """
     Q Function approximation via polynomial regression.
     """
-    def __init__(self, States, Rewards, Actions, qmodel='rbf', degree=2, gamma=0.95,
-                 rbf_bw=1.0, poly_interaction=False, RBFSampler_random_state = 1):
+    def __init__(self, States, Rewards, Actions, qmodel='rbf', degree=2,
+                 gamma=0.95, rbf_dim=5, rbf_bw=1.0, n_actions=None, centered=False, RBFSampler_random_state=1):
         '''
         initialization
         :param env: an object of RLenv
@@ -47,7 +36,7 @@ class q_learning():
         :param time_start: starting time of the interval
         :param time_terminal: terminal time of the interval
         '''
-        # print(1)
+
         # self.env = env
         # degree of polynomial basis
         self.degree = degree
@@ -57,22 +46,20 @@ class q_learning():
         self.qmodel = qmodel
 
         # if no rbf basis, then just a linear term
-        if degree == 0 and qmodel == 'rbf':
+        if rbf_dim == 0:
             self.qmodel = 'polynomial'
             self.degree = 1
 
+        # if qmodel == 'rbf':
+        #     centered = True
         if self.qmodel == "rbf":
-            self.featurize = RBFSampler(gamma=rbf_bw, random_state=RBFSampler_random_state, n_components=degree)
+            self.featurize = RBFSampler(gamma=rbf_bw, random_state=RBFSampler_random_state, n_components=rbf_dim)
             self.model = LinearRegression(fit_intercept=False)
         elif self.qmodel == "polynomial":
-            # print('qmodel'+"polynomial",'poly_interaction',poly_interaction)
-            if poly_interaction:
-                self.featurize = PolynomialFeatures(degree=self.degree, include_bias=True)#(degree != 1) *
-            else: # exclude interactions
-                # print('no interactions')
-                self.featurize = PolynomialFeatures_no_interaction(degree=self.degree, include_bias=True)
+            self.featurize = PolynomialFeatures(degree=self.degree, include_bias=True)#(centered==False)
             self.model = LinearRegression(fit_intercept=False)
         else:
+            self.model = None
             pass
 
         # # get initial states
@@ -83,7 +70,13 @@ class q_learning():
         self.Rewards = Rewards
         self.Actions = Actions
         # number of unique actions
-        self.n_actions = len(np.unique(Actions))
+        if n_actions is None:
+            self.n_actions = len(np.unique(Actions))
+        else:
+            self.n_actions = n_actions
+
+        # create a list of q function models, one for each action
+        self.q_function_list = [copy(self.model) for x in range(self.n_actions)]
 
         # self.model.fit(initial_dsgn, env.Rewards[:, time_start])
         # self.theta = self.model.coef_
@@ -95,23 +88,26 @@ class q_learning():
         self.N = Actions.shape[0]
         self.T = Actions.shape[1]
 
+        # create a list of indices to indicate which action is taken
+        self.action_indices = [np.where(Actions.flatten() == a)[0] for a in range(self.n_actions)]
+
         # create design matrix for the current states
         # print(self.featurize)
-        # print('state0')
+        # print('=====States0====')
         self.States0 = self.create_design_matrix(States, Actions, type='current', pseudo_actions=None)
         ## create design matrix for the next states
-        # print('action0')
-        self.States1_action0 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=0)
-        # print('action1')
-        self.States1_action1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=1)
+        self.States1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=0)
+        # self.States1_action1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=1)
 
-        # create vector of rewards
+        # create a list of vectors of rewards
+        # self.Rewards_vec = [None for a in range(self.n_actions)]
+        # for a in range(self.n_actions):
+        #     self.Rewards_vec[a] = Rewards.flatten()[self.action_indices[a]]
         self.Rewards_vec = Rewards.flatten()
 
         # # number of features in the design matrix for (s,a)
         # self.p = int(self.States0.shape[1] / self.n_actions)
-        # print("self.States0 =", self.States0[0:5,:].toarray())
-        # print("RBFSampler_random_state =", RBFSampler_random_state)
+
 
     def featurize_state(self, state):
         """
@@ -119,40 +115,34 @@ class q_learning():
         """
 
         if self.qmodel == "polynomial":
-            # print(state.shape)
             return self.featurize.fit_transform(state)
         elif self.qmodel == "rbf":
             out = self.featurize.fit_transform(state)
-            # add intercept
             return PolynomialFeatures(degree=1, include_bias=True).fit_transform(out)
         else: # do nothing
             pass
 
-    def create_sp_design_matrix(self, features, Actions):
-        """
-        Create a sparse design matrix phi for functional approximation.
-        For each action a in the action space, the features phi(States, a) is a Nxp matrix.
-        phi is composed of combining the columns of phi(States, a), depending on the action taken
-        :return: an np.array of size N x (p*a)
-        """
-        # print('in')
-        p = features.shape[1]
-        # print('p',p)
-        ## create column indices for the sparse matrix
-        idx_add = p * np.arange(self.n_actions)
-        # print('self.n_actions', self.n_actions,'idx_add',idx_add)
-        col = np.array([xi + np.arange(p) for xi in idx_add])
-        col_idx = col[Actions]
-        # print('col_idx',col_idx)
-        col_idx = np.concatenate(col_idx)
-
-        ## create row indices for the sparse matrix
-        row_idx = np.repeat(np.arange(features.shape[0]), p)
-
-        # creating sparse matrix 
-        sparseMatrix = sp.csr_matrix((np.concatenate(features), (row_idx, col_idx)),
-                                     shape=(features.shape[0], p * self.n_actions))
-        return sparseMatrix
+    # def create_sp_design_matrix(self, features, Actions):
+    #     """
+    #     Create a sparse design matrix phi for functional approximation.
+    #     For each action a in the action space, the features phi(States, a) is a Nxp matrix.
+    #     phi is composed of combining the columns of phi(States, a), depending on the action taken
+    #     :return: an np.array of size N x (p*a)
+    #     """
+    #     p = features.shape[1]
+    #     ## create column indices for the sparse matrix
+    #     idx_add = p * np.arange(self.n_actions)
+    #     col = np.array([xi + np.arange(p) for xi in idx_add])
+    #     col_idx = col[Actions]
+    #     col_idx = np.concatenate(col_idx)
+    #
+    #     ## create row indices for the sparse matrix
+    #     row_idx = np.repeat(np.arange(features.shape[0]), p)
+    #
+    #     # creating sparse matrix
+    #     sparseMatrix = sp.csr_matrix((np.concatenate(features), (row_idx, col_idx)),
+    #                                  shape=(features.shape[0], p * self.n_actions))
+    #     return sparseMatrix
 
 
     def create_design_matrix(self, States, Actions, type='current', pseudo_actions=None):
@@ -160,25 +150,43 @@ class q_learning():
         Create design matrix of States from time t0 to t1 (both inclusive)
         :param type: 'current' for St or 'next' for S_t+1
         :param pseudo_actions:
-        :param return_list:
         :return:
         '''
-        # print('type',type)
-        if type == 'current': # used to fit model
-            # print('in')
+        if type == 'current':
             # stack the states by person, and time: S11, ..., S1T, S21, ..., S2T
             States_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
             Actions_stack = Actions.flatten()
-        elif type == 'next': # used to calculate the loss
+            # n_actions = len(np.unique(Actions))
+            features = [None for a in range(self.n_actions)]
+            for a in range(self.n_actions):
+                # print('a',a,'n_actions',self.n_actions)
+                action_index = np.where(Actions_stack == a)[0]
+                if len(action_index) > 0:
+                    features[a] = States_stack[np.where(Actions_stack == a)[0],:]
+                    features[a] = self.featurize_state(features[a])
+                    # print('features[a]',features[a])
+            
+        elif type == 'next':
             States_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
             if pseudo_actions is not None:
-                Actions_stack = np.repeat(pseudo_actions, States_stack.shape[0])
+                # Actions_stack = np.repeat(pseudo_actions, States_stack.shape[0])
+                # features = [None for a in range(self.n_actions)]
+                # features[pseudo_actions] = States_stack
+                features = [States_stack]
+                for a in range(len(features)):
+                    features[a] = self.featurize_state(features[a])
             else:
                 Actions_stack = Actions.flatten()
-                
-        features = self.featurize_state(States_stack)
-        # print('features',features.shape)
-        return self.create_sp_design_matrix(features, Actions_stack)
+                features = [None for a in range(self.n_actions)]
+                for a in range(self.n_actions):
+                    action_index = np.where(Actions_stack == a)[0]
+                    if len(action_index) > 0:
+                        features[a] = States_stack[np.where(Actions_stack == a)[0], :]
+                        features[a] = self.featurize_state(features[a])
+
+        # for a in range(len(features)):
+        #     features[a] = self.featurize_state(features[a])
+        return features
 
 
 
@@ -190,46 +198,51 @@ class q_learning():
         # initialize parameter theta
         if model is None:
             if self.qmodel == "rbf" or self.qmodel == "polynomial":
-                self.model = LinearRegression(fit_intercept = False)
-                self.model.fit(self.States0, self.Rewards_vec)
+                for a in range(self.n_actions):
+                    self.q_function_list[a] = LinearRegression(fit_intercept = False)
+                    self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
+                # self.model = LinearRegression(fit_intercept = False)
+                # self.model.fit(self.States0, self.Rewards_vec)
         else:
             self.model = model
+            for a in range(self.n_actions):
+                self.q_function_list[a] = copy(model)
+                # self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[a])
+
             # is the model initialized?
             try:
                 self.model.coef_
             except: # if not initialized
-                self.model.fit(self.States0, self.Rewards_vec)
-
+                # self.model.fit(self.States0, self.Rewards_vec)
+                for a in range(self.n_actions):
+                    self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
 
         ## FQI
         convergence = True
         errors = []
-        loss = []
+        # loss = []
+        predicted_old = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
+        predicted = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
         while err > tol and num_iter <= max_iter:
-            model_old = copy(self.model)
 
-            # estimated Q value at the current time
-            # Q_old = model.predict(States0)
-            # Q0 = States0 @ theta
-
-            # predict the Q value for the next time and find out the maximum Q values for each episode
-            Q_max = np.asarray([self.model.predict(self.States1_action0),
-                                self.model.predict(self.States1_action1)]).max(0)
+            Q_max = np.ones(shape = self.Rewards_vec.shape) * (-999)
+            for a in range(self.n_actions):
+                # predict the Q value for the next time and find out the maximum Q values for each episode
+                Q_max = np.maximum(self.q_function_list[a].predict(self.States1[0]), Q_max)
 
             # compute TD target
             td_target = self.Rewards_vec + self.gamma * Q_max
-
             # update parameter fit
-            self.model.fit(self.States0, td_target)
-
-            # model = FQI_one_iter(model)
-            predicted = self.model.predict(self.States0)
-            err = np.sqrt(sum(model_old.predict(self.States0) - predicted) ** 2)
+            err = 0.0
+            for a in range(self.n_actions):
+                self.q_function_list[a].fit(self.States0[a], td_target[self.action_indices[a]])
+                predicted[a] = self.q_function_list[a].predict(self.States0[a])
+                err += sum((predicted[a] - predicted_old[a])**2)
+            err = np.sqrt(err)
             errors.append(err)
-
-            # least square loss
-            loss.append(np.mean( (td_target - predicted)**2 ))
+            predicted_old = copy(predicted)
             num_iter += 1
+            # print("err=",err)
 
             # break if exceeds the max number of iterations allowed
             if num_iter > max_iter:
@@ -237,38 +250,61 @@ class q_learning():
                 break
 
         ## calculate TD error
-        Q_predict = np.asarray([self.model.predict(self.States1_action0),
-                                self.model.predict(self.States1_action1)])
-        td_error = self.Rewards_vec + self.gamma * Q_predict.max(0) - self.model.predict(self.States0)
+        predicted = np.zeros(shape=self.Rewards_vec.shape)
+        for a in range(self.n_actions):
+            predicted[self.action_indices[a]] = self.q_function_list[a].predict(self.States0[a])
+        Q_max = np.ones(shape=self.Rewards_vec.shape) * (-999)
+        # obtain the optimal actions at S_t+1
+        opt_action = np.zeros(shape=self.Rewards_vec.shape, dtype='int32')
+        for a in range(self.n_actions):
+            # predict the Q value for the next time and find out the maximum Q values for each episode
+            Q_a = self.q_function_list[a].predict(self.States1[0])
+            # should we update the optimal action?
+            better_action_indices = np.where(Q_a > Q_max)
+            opt_action[better_action_indices] = a
+            Q_max[better_action_indices] = Q_a[better_action_indices]
+            # Q_max = np.maximum(Q_a, Q_max)
+
+        td_error = self.Rewards_vec + self.gamma * Q_max - predicted
 
         ## calculate W matrix
-        # obtain the optimal actions at S_t+1
-        optimal_Actions = Q_predict.argmax(0)
-
         # create design matrix for the states under the optimal actions
-        optimal_design_matrix = self.create_design_matrix(self.States, optimal_Actions, 'next')
-        # print("optimal_Actions =", optimal_Actions[0:10])
-        # print("optimal_design_matrix =", optimal_design_matrix.toarray()[0:10,:])
-        W_mat = self.States0.T.dot(self.States0 - self.gamma * optimal_design_matrix) / self.T
-        try:
-            FQI_result = namedtuple("beta", ["beta", "W_mat", "design_matrix", 'td_error', 'Qmodel'])
-            return FQI_result(self.model.coef_, W_mat, self.States0, td_error, [errors, num_iter, convergence, loss])
-        except:
-            FQI_result = namedtuple("beta", ["W_mat", "design_matrix", 'td_error', 'Qmodel'])
-            return FQI_result(W_mat, self.States0, td_error, [errors, num_iter, convergence, loss])
+
+        # optimal_design_matrix_list = self.create_design_matrix(self.States, opt_action, 'next')
+        # optimal_design_matrix = np.zeros(shape = self.States1[0].shape)
+        # for a in range(self.n_actions):
+        #     optimal_design_matrix[self.action_indices[a],:] = optimal_design_matrix_list[a]
+
+        # W_mat = 0.0
+        # for a in range(self.n_actions):
+        #     W_mat += self.States0[a].T.dot(self.States0[a] - self.gamma * optimal_design_matrix_list[a]) / self.T
+        # W_mat = self.States0.T.dot(self.States0 - self.gamma * optimal_design_matrix) / self.T
+
+        FQI_result = namedtuple("beta", ["q_function_list", "design_matrix", 'Qmodel'])
+        return FQI_result(self.q_function_list, self.States0,
+                          [errors, num_iter, convergence])
 
 
     def optimal(self):
         Actions0 = np.zeros(self.Actions.shape, dtype='int32')
         design_matrix0 = self.create_design_matrix(self.States, Actions0, type='current', pseudo_actions=None)
-        q_estimated0 = self.model.predict(design_matrix0)
+        opt_reward = np.ones(shape=(Actions0.shape[0] * Actions0.shape[1], 1)) * (-999)
+        opt_action = np.zeros(shape = self.Actions.shape, dtype = 'int32')
+        for a in range(self.n_actions):
+            q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
+            # should we update the optimal action?
+            better_action_indices = np.where(q_estimated0_a > opt_reward)
+            opt_action[better_action_indices] = a
+            opt_reward = np.maximum(opt_reward, q_estimated0_a)
 
-        Actions0 = np.ones(self.Actions.shape, dtype='int32')
-        design_matrix0 = self.create_design_matrix(self.States, Actions0, type='current', pseudo_actions=None)
-        q_estimated1 = self.model.predict(design_matrix0)
-
-        opt_reward = np.maximum(q_estimated0, q_estimated1)
-        opt_action = np.argmax(np.vstack((q_estimated0, q_estimated1)), axis=0)
+        # q_estimated0 = self.model.predict(design_matrix0)
+        #
+        # Actions0 = np.ones(self.Actions.shape, dtype='int32')
+        # design_matrix0 = self.create_design_matrix(self.States, Actions0, type='current', pseudo_actions=None)
+        # q_estimated1 = self.model.predict(design_matrix0)
+        #
+        # opt_reward = np.maximum(q_estimated0, q_estimated1)
+        # opt_action = np.argmax(np.vstack((q_estimated0, q_estimated1)), axis=0)
         optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
         return optimal(opt_reward, opt_action)
 
@@ -277,16 +313,21 @@ class q_learning():
         N = States.shape[0]
         T = States.shape[1] - 1
         Actions0 = np.zeros(shape=(N,T), dtype='int32')
+        # print("States =", States)
+        # print("Actions0 =", Actions0)
         design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
-        q_estimated0 = self.model.predict(design_matrix0)
-
-        Actions0 = np.ones(shape=(N,T), dtype='int32')
-        design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
-        q_estimated1 = self.model.predict(design_matrix0)
-        # print("q_estimated0 =", q_estimated0)
-        # print("q_estimated1 =", q_estimated1)
-        opt_reward = np.maximum(q_estimated0, q_estimated1)
-        opt_action = np.argmax(np.vstack((q_estimated0, q_estimated1)), axis=0)
+        # print("design_matrix0=", design_matrix0)
+        # print(design_matrix0[0,:].toarray())
+        opt_reward = np.ones(shape = (N*T,)) * (-999)
+        opt_action = np.zeros(shape = (N*T,), dtype = 'int32')
+        for a in range(self.n_actions):
+            q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
+            # print(q_estimated0_a)
+            # should we update the optimal action?
+            better_action_indices = np.where(q_estimated0_a > opt_reward)
+            opt_action[better_action_indices] = a
+            # opt_action = np.argmax(np.vstack((opt_reward, q_estimated0_a)), axis=0)
+            opt_reward = np.maximum(opt_reward, q_estimated0_a)
         optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
         return optimal(opt_reward, opt_action)
 
@@ -306,216 +347,91 @@ def split_train_test(n, fold = 5):
         yield seq[si:si + (d + 1 if i < r else d)]
 
 def gaussian_rbf_distance(x1, x2, bandwidth = 1.0):
-    return np.exp(- bandwidth * np.sum((x1 - x2)  ** 2))
+    return np.exp(- bandwidth * np.sum((x1 - x2) ** 2))
 
 def train_test(States, Rewards, Actions, test_index, num_basis, u, bandwidth = 1.0,
-          qmodel='rbf', gamma=0.95, model=None, max_iter=300, tol=1e-2, criterion = 'ls', RBFSampler_random_state=1):
-    # print('OK')
+          qmodel='rbf', gamma=0.95, model=None, max_iter=300, tol=1e-2, criterion = 'ls'):
+    n_actions = len(np.unique(Actions))
     #%% training
     # extract training data
-    if States.shape[0] >1:
-        States_train = np.delete(States, (test_index), axis=0)
-        Rewards_train = np.delete(Rewards, (test_index), axis=0)
-        Actions_train = np.delete(Actions, (test_index), axis=0)
-    else:
-        States_train = np.delete(States, (test_index), axis=1)
-        Rewards_train = np.delete(Rewards, (test_index), axis=1)
-        Actions_train = np.delete(Actions, (test_index), axis=1)
-    # q1 = q_learning(States_train[:, :(u + 1), :], Rewards_train[:, :u], Actions_train[:, :u], qmodel, num_basis, gamma, num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-    # q2 = q_learning(States_train[:, u:, :], Rewards_train[:, u:], Actions_train[:, u:], qmodel, num_basis, gamma, num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-    # # States1 = q1.States0
-    # States1_action0 = q1.States1_action0
-    # States1_action1 = q1.States1_action1
-    # # States2 = q2.States0
-    # States2_action0 = q2.States1_action0
-    # States2_action1 = q2.States1_action1
-    # design_matrix = sp.vstack(( sp.hstack((q1.States0, sp.csr_matrix(q1.States0.shape))),
-    #                             sp.hstack((sp.csr_matrix(q2.States0.shape), q2.States0)) ))
-    # design_matrix_action0 = sp.vstack((sp.hstack((States1_action0, sp.csr_matrix(States1_action0.shape))),
-    #                                    sp.hstack((sp.csr_matrix(States2_action0.shape), States2_action0))))
-    # design_matrix_action1 = sp.vstack((sp.hstack((States1_action1, sp.csr_matrix(States1_action1.shape))),
-    #                                    sp.hstack((sp.csr_matrix(States2_action1.shape), States2_action1))))
-    if u != 0:
-        # print('u',u)
-        q1 = q_learning(States_train[:, :(u + 1), :], Rewards_train[:, :u], Actions_train[:, :u], qmodel, num_basis, gamma, num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-        q2 = q_learning(States_train[:, u:, :], Rewards_train[:, u:], Actions_train[:, u:], qmodel, num_basis, gamma, num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-        # States1 = q1.States0
-        States1_action0 = q1.States1_action0
-        States1_action1 = q1.States1_action1
-        # States2 = q2.States0
-        States2_action0 = q2.States1_action0
-        States2_action1 = q2.States1_action1
-        design_matrix = sp.vstack(( sp.hstack((q1.States0, sp.csr_matrix(q1.States0.shape))),
-                                    sp.hstack((sp.csr_matrix(q2.States0.shape), q2.States0)) ))
-        design_matrix_action0 = sp.vstack((sp.hstack((States1_action0, sp.csr_matrix(States1_action0.shape))),
-                                           sp.hstack((sp.csr_matrix(States2_action0.shape), States2_action0))))
-        design_matrix_action1 = sp.vstack((sp.hstack((States1_action1, sp.csr_matrix(States1_action1.shape))),
-                                           sp.hstack((sp.csr_matrix(States2_action1.shape), States2_action1))))
-        Rewards_vec = np.hstack((q1.Rewards_vec, q2.Rewards_vec))
-    else:
-        # print('u=0')
-        # States, Rewards, Actions, qmodel='rbf', degree=2, gamma=0.95,
-        #               rbf_bw=1.0, poly_interaction=False, RBFSampler_random_state = 1)
-        # if len(States.shape) == 3:
-        q2 = q_learning(States_train[:, u:, :], Rewards_train[:, u:], Actions_train[:, u:], qmodel, num_basis, gamma, bandwidth,False, RBFSampler_random_state=RBFSampler_random_state)
-        # else:
-            # q2 = q_learning(States_train[u:, :], Rewards_train[u:], Actions_train[u:], qmodel, num_basis, gamma, bandwidth,False, RBFSampler_random_state=RBFSampler_random_state)
-        # States1 = q1.States0
-        # States1_action0 = q1.States1_action0
-        # States1_action1 = q1.States1_action1
-        # States2 = q2.States0
-        design_matrix =q2.States0
-        design_matrix_action0 = q2.States1_action0
-        design_matrix_action1 =  q2.States1_action1        
-        Rewards_vec = q2.Rewards_vec
+    States_train = np.delete(States, (test_index), axis=0)
+    Rewards_train = np.delete(Rewards, (test_index), axis=0)
+    Actions_train = np.delete(Actions, (test_index), axis=0)
 
-    # initialize error and number of iterations
-    err = 1.0
-    num_iter = 0
+    def train_test_one_side(States0, Rewards0, Actions0):
+        #%% training
+        # extract training data
+        States_train = np.delete(States0, (test_index), axis=0)
+        Rewards_train = np.delete(Rewards0, (test_index), axis=0)
+        Actions_train = np.delete(Actions0, (test_index), axis=0)
 
-    # initialize parameter theta
-    if model is None:
-        if qmodel == "polynomial" or qmodel == "rbf":
-            model = LinearRegression(fit_intercept=False)
-        model.fit(design_matrix, Rewards_vec)
-    else:
-        # is the model initialized?
-        try:
-            model.coef_
-        except:  # if not initialized
-            model.fit(design_matrix, Rewards_vec)
+        q = q_learning(States_train, Rewards_train, Actions_train, qmodel, num_basis,
+                       gamma, num_basis, bandwidth, n_actions)
+        # States1 = q.States1[0]
+        # FQI
+        q_fit = q.fit(model)
 
-
-    ## FQI
-    convergence = True
-    # errors = []
-    # loss = []
-    while err > tol and num_iter <= max_iter:
-        model_old = copy(model)
-
-        # estimated Q value at the current time
-        # Q_old = model.predict(States0)
-        # Q0 = States0 @ theta
-        try:
-
+        # %% testing
+        States_test = States0[test_index, :, :]
+        Rewards_test = Rewards0[test_index, :]
+        Actions_test = Actions0[test_index, :]
+        q_test = q_learning(States_test, Rewards_test, Actions_test, qmodel, num_basis,
+                            gamma, num_basis, bandwidth)
+        # calculate temporal difference error
+        Q_max = np.ones(shape=q_test.Rewards_vec.shape) * (-999)
+        for a in range(n_actions):
             # predict the Q value for the next time and find out the maximum Q values for each episode
-            Q_max = np.asarray([model.predict(design_matrix_action0),
-                                model.predict(design_matrix_action1)]).max(0)
+            Q_max = np.maximum(q.q_function_list[a].predict(q_test.States1[0]), Q_max)
+        # compute TD target
+        td_target = q_test.Rewards_vec + gamma * Q_max
 
-            # compute TD target
-            td_target = Rewards_vec + gamma * Q_max
+        predicted = np.zeros(shape=q_test.Rewards_vec.shape)
+            # [np.zeros(len(q_test.action_indices[a])) for a in range(n_actions)]
+        for a in range(n_actions):
+            predicted[q_test.action_indices[a]] = q.q_function_list[a].predict(q_test.States0[a])
 
-            # update parameter fit
-            model.fit(design_matrix, td_target)
+        # temporal difference error
+        tde = q_test.Rewards_vec + gamma * Q_max - predicted
 
-            # model = FQI_one_iter(model)
-            predicted = model.predict(design_matrix)
+        # calculate loss depending on convergence criterion
+        if criterion == 'ls': # least squares
+            loss = np.mean(tde ** 2)
+        elif criterion == 'kerneldist': # kernel distance
+            def distance_function_state(x1,x2):
+                return gaussian_rbf_distance(x1, x2, bandwidth)
+            def distance_function_action(x1,x2):
+                return abs(x1 - x2)
+            def tde_product(x1, x2):
+                return x1 * x2
 
-            # temporal difference error
-            # tde =
-            err = np.sqrt(sum(model_old.predict(design_matrix) - predicted) ** 2)
-        except RuntimeWarning:
-            print("In CV training, matrix is not invertible in regression")
-        num_iter += 1
+            States_stack = States_test[:,:-1,:].transpose(2, 0, 1).reshape(States.shape[2], -1).T
+            nrow1 = States_stack.shape[0]
+            Actions_vec = Actions_test.flatten()
+            K_states = pdist(States_stack, metric=distance_function_state)
+            K_actions = pdist(Actions_vec.reshape(-1, 1), metric=distance_function_action)
+            tdes = pdist(tde.reshape(-1, 1), metric=tde_product)
+            K_total = np.sum((1.0 + K_actions + K_states + K_actions * K_states) * tdes)
+            loss = K_total / len(tdes)
+        return loss
 
-        # break if exceeds the max number of iterations allowed
-        if num_iter > max_iter:
-            convergence = False
-            break
+    # first piece
+    States0 = States[:, :(u + 1), :]
+    Rewards0 = Rewards[:, :u]
+    Actions0 = Actions[:, :u]
+    loss = train_test_one_side(States0, Rewards0, Actions0)
 
-    del States_train, Rewards_train, Actions_train
+    # second piece
+    States0 = States[:, u:, :]
+    Rewards0 = Rewards[:, u:]
+    Actions0 = Actions[:, u:]
+    loss += train_test_one_side(States0, Rewards0, Actions0)
 
-    if not convergence:  # if converged:
-        # print("FQI did not converge")
-        if type(model) is not DecisionTreeRegressor:
-            if max(abs(model.coef_)) > 1e10:
-                loss = 1e10
-                return loss
-
-    # %% testing
-    # extract training data
-    if States.shape[0] >1:
-        States_test = States[test_index, :, :]
-        Rewards_test = Rewards[test_index, :]
-        Actions_test = Actions[test_index, :]
-    else:
-        States_test = States[:,test_index + [test_index[-1]+1], :]
-        Rewards_test = Rewards[:,test_index]
-        Actions_test = Actions[:,test_index]
-    if u !=0:
-        q1 = q_learning(States_test[:, :(u + 1), :], Rewards_test[:, :u], Actions_test[:, :u], qmodel, num_basis,
-                        gamma, num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-        q2 = q_learning(States_test[:, u:, :], Rewards_test[:, u:], Actions_test[:, u:], qmodel, num_basis, gamma,
-                        num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-        States1_action0 = q1.States1_action0
-        States1_action1 = q1.States1_action1
-        States2_action0 = q2.States1_action0
-        States2_action1 = q2.States1_action1
-        design_matrix = sp.vstack((sp.hstack((q1.States0, sp.csr_matrix(q1.States0.shape))),
-                                   sp.hstack((sp.csr_matrix(q2.States0.shape), q2.States0))))
-        design_matrix_action0 = sp.vstack((sp.hstack((States1_action0, sp.csr_matrix(States1_action0.shape))),
-                                           sp.hstack((sp.csr_matrix(States2_action0.shape), States2_action0))))
-        design_matrix_action1 = sp.vstack((sp.hstack((States1_action1, sp.csr_matrix(States1_action1.shape))),
-                                           sp.hstack((sp.csr_matrix(States2_action1.shape), States2_action1))))
-    
-        # create vector of rewards
-        # Rewards_vec = Rewards_test.flatten()
-        Rewards_vec = np.hstack((q1.Rewards_vec, q2.Rewards_vec))
-    else:
-        # q2 = q_learning(States_test[:, u:, :], Rewards_test[:, u:], Actions_test[:, u:], qmodel, num_basis, gamma,
-        #                 num_basis, bandwidth, RBFSampler_random_state=RBFSampler_random_state)
-        q2 = q_learning(States_test[:, u:, :], Rewards_test[:, u:], Actions_test[:, u:], qmodel, num_basis, gamma, bandwidth,False, RBFSampler_random_state=RBFSampler_random_state)
-        States2_action0 = q2.States1_action0
-        States2_action1 = q2.States1_action1
-        design_matrix = q2.States0
-        design_matrix_action0 = q2.States1_action0
-        design_matrix_action1 = q2.States1_action1    
-        # create vector of rewards
-        # Rewards_vec = Rewards_test.flatten()
-        Rewards_vec = q2.Rewards_vec
-    # predict the Q value for the next time and find out the maximum Q values for each episode
-    Q_max = np.asarray([model.predict(design_matrix_action0),
-                        model.predict(design_matrix_action1)]).max(0)
-    # temporal difference error
-    tde = Rewards_vec + gamma * Q_max - model.predict(design_matrix)
-    del design_matrix, design_matrix_action0, design_matrix_action1
-
-    # calculate loss depending on convergence criterion
-    if criterion == 'ls': # least squares
-        loss = np.mean(tde ** 2)
-    elif criterion == 'kerneldist': # kernel distance
-        def distance_function_state(x1,x2):
-            return gaussian_rbf_distance(x1, x2, bandwidth)
-        def distance_function_action(x1,x2):
-            return abs(x1 - x2)
-        def tde_product(x1, x2):
-            return x1 * x2
-
-        # first piece
-        States_stack = States_test[:, :u, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
-        nrow1 = States_stack.shape[0]
-        Actions_vec = Actions_test[:, :u].flatten()
-        K_states = pdist(States_stack, metric=distance_function_state)
-        K_actions = pdist(Actions_vec.reshape(-1, 1), metric=distance_function_action)
-        tdes = pdist(tde[:States_stack.shape[0]].reshape(-1, 1), metric=tde_product)
-        K_total = np.sum((1.0 + K_actions + K_states + K_actions * K_states) * tdes)
-        # second piece
-        tdes = pdist(tde[States_stack.shape[0]:].reshape(-1, 1), metric=tde_product)
-        States_stack = States_test[:, u:-1, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
-        nrow2 = States_stack.shape[0]
-        Actions_vec = Actions_test[:, u:].flatten()
-        K_states = pdist(States_stack, metric=distance_function_state)
-        K_actions = pdist(Actions_vec.reshape(-1, 1), metric=distance_function_action)
-        K_total += np.sum((1.0 + K_actions + K_states + K_actions * K_states) * tdes)
-        loss = K_total / ((nrow1 * (nrow1 - 1) / 2) + (nrow2 * (nrow2 - 1) / 2))
     return loss
-
-
 
 
 def select_num_basis_cv(States, Rewards, Actions, u, num_basis_list=[0,1,2,3], bandwidth = 1.0,
                         qmodel='rbf', gamma=0.95, model=None, max_iter=300, tol=1e-4,
-                        nfold = 5, num_threads = 5, criterion = 'ls', seed=0, RBFSampler_random_state=1):
+                        nfold = 5, num_threads = 5, criterion = 'ls', seed=0):
     np.random.seed(seed)
     N = Rewards.shape[0]
     test_indices = list(split_train_test(N, nfold))
@@ -525,7 +441,7 @@ def select_num_basis_cv(States, Rewards, Actions, u, num_basis_list=[0,1,2,3], b
     if N*T*States.shape[2] > 100000:
         num_threads = 1
     else:
-        num_threads = 5
+        num_threads = 4
 
     min_test_error = 500.0
     selected_num_basis = num_basis_list[0]
@@ -533,7 +449,7 @@ def select_num_basis_cv(States, Rewards, Actions, u, num_basis_list=[0,1,2,3], b
 
         def run_one(fold):
             return train_test(States, Rewards, Actions, test_indices[fold], num_basis, u,
-                                 bandwidth, qmodel, gamma, model, max_iter, tol, criterion, RBFSampler_random_state)
+                                 bandwidth, qmodel, gamma, model, max_iter, tol, criterion)
 
         # parallel jobs
         test_errors = Parallel(n_jobs=num_threads, prefer="threads")(delayed(run_one)(fold) for fold in range(nfold))
@@ -554,7 +470,7 @@ def select_num_basis_cv(States, Rewards, Actions, u, num_basis_list=[0,1,2,3], b
 
 #%%
 def pvalue(States, Rewards, Actions, T_total,
-           qmodel = 'rbf', degree=4, rbf_bw = 1.0,
+           qmodel = 'rbf', degree=4, rbf_dim = 5, rbf_bw = 1.0,
            gamma=0.95, u_list=None, num_changept=3, num_threads=1,
            theta=0.5, J=10, epsilon=0.02, nB=1000,
            select_basis = False, select_basis_interval = 10, num_basis_list=[1,2,3],
@@ -570,27 +486,12 @@ def pvalue(States, Rewards, Actions, T_total,
     # calculate the range of u
     # create a list of candidate change points
     if u_list is None:
-        if (0.5*T < epsilon * T_total):
+        if (0.5*T <= epsilon * T_total):
             print('kappa should be greater than 2*epsilon*T')
             return
         u_list = np.linspace(epsilon * T_total, T - epsilon * T_total, num_changept)
         u_list = np.unique([int(i) for i in u_list])
         u_list = np.ndarray.tolist(u_list)
-
-    if N > 100:  # if sample size is too large
-        sample_subject_index = np.random.choice(N, 100, replace=False)
-    else:
-        sample_subject_index = np.arange(N)
-    ### compute bandwidth if not input
-    if rbf_bw is None:
-        # compute pairwise distance between states for the first piece
-        pw_dist = pdist(States[sample_subject_index, :, :].transpose(2, 0, 1).reshape(p_state, -1).T,
-                                     metric='euclidean')
-        rbf_bw = 1.0 / np.nanmedian(np.where(pw_dist > 0, pw_dist, np.nan))
-        # use the median of the minimum of distances as bandwidth
-        # rbf_bw = np.median(np.where(pw_dist > 0, pw_dist, np.inf).min(axis=0))
-        print("Bandwidth chosen: {:.5f}".format(rbf_bw))
-        del pw_dist
 
     # get a list of u at which basis selection will be performed
     if select_basis:  # if we perform basis selection:
@@ -600,6 +501,20 @@ def pvalue(States, Rewards, Actions, T_total,
         # Creating an empty list
         u_num_basis = []
 
+        if N > 100:  # if sample size is too large
+            sample_subject_index = np.random.choice(N, 100, replace=False)
+        else:
+            sample_subject_index = np.arange(N)
+        ### compute bandwidth
+        # compute pairwise distance between states for the first piece
+        pw_dist = pdist(States[sample_subject_index, :, :].transpose(2, 0, 1).reshape(p_state, -1).T,
+                                     metric='euclidean')
+        rbf_bw = 1.0 / np.nanmedian(np.where(pw_dist > 0, pw_dist, np.nan))
+        # use the median of the minimum of distances as bandwidth
+        # rbf_bw = np.median(np.where(pw_dist > 0, pw_dist, np.inf).min(axis=0))
+        print("Bandwidth chosen: {:.5f}".format(rbf_bw))
+        del pw_dist
+
         for u in u_select_basis:
             print("u =", u)
            # perform basis selection
@@ -607,11 +522,10 @@ def pvalue(States, Rewards, Actions, T_total,
                                         Rewards[sample_subject_index, :],
                                         Actions[sample_subject_index, :], u, num_basis_list, rbf_bw,
                                         qmodel, gamma, model=None, max_iter=400, tol=1e-4, nfold=5,
-                                        num_threads=num_threads*5, criterion=criterion, seed=seed,
-                                        RBFSampler_random_state=RBFSampler_random_state)
-            degree = basis.num_basis
-            print("Number of basis chosen:", degree)
-            u_num_basis.append(degree)
+                                        num_threads=num_threads*5, criterion=criterion, seed=seed)
+            degree = rbf_dim = basis.num_basis
+            print("Number of basis chosen:", rbf_dim)
+            u_num_basis.append(rbf_dim)
             del basis
 
 
@@ -622,24 +536,23 @@ def pvalue(States, Rewards, Actions, T_total,
 
 
     else: # if we do not perform basis selection, then use the default for both pieces
-        fqi_model = q_learning(States, Rewards, Actions, qmodel, degree, gamma, degree, rbf_bw,
-                               RBFSampler_random_state=RBFSampler_random_state)
+        fqi_model = q_learning(States, Rewards, Actions, qmodel, degree, gamma, rbf_dim, rbf_bw)
+        fqi_model_fit = fqi_model.fit()
         model = copy(fqi_model.model)
-        # model = Lasso(alpha=0.001, fit_intercept=False, max_iter=400)
-        # initialize model parameters with 0 responses
-        model.fit(fqi_model.States0, fqi_model.Rewards_vec)
+        # # initialize model parameters with 0 responses
+        # model.fit(fqi_model.States0, fqi_model.Rewards_vec)
 
     # update the test statistic and the boostrapped test statistic
     noise = np.random.normal(size=N*T*nB).reshape(N*T, nB)
 
     # first argument: [u_list, random_state]
-    def test_u(condition, degree):
+    def test_u(condition, degree, rbf_dim):
         u_list = condition[0]
         random_state = condition[1]
         rng = np.random.RandomState(random_state)
         print('Calculating ST at time points', u_list, '\n')
 
-        if not select_basis:  # if we do not perform basis selection:
+        if not select_basis:  # if we perform basis selection:
             # model for Q on [T-kappa, T-u]
             model1 = copy(model)
             # model for Q on [T-u, T]
@@ -666,7 +579,7 @@ def pvalue(States, Rewards, Actions, T_total,
         for u in u_list:
             if select_basis:
                 u_select_basis_idx = bisect_right(u_select_basis, u)-1
-                degree = u_num_basis[u_select_basis_idx]
+                degree = rbf_dim = u_num_basis[u_select_basis_idx]
                 # model1 = None
                 # model2 = None
                 if u == u_list[0]: # in the first iteration
@@ -680,9 +593,31 @@ def pvalue(States, Rewards, Actions, T_total,
                         model1 = None
                         model2 = None
                         basis_old = degree
+            # degree = rbf_dim
             try:
-                fqi_model1 = q_learning(States[:,0:(u+1),:], Rewards[:,0:u], Actions[:,0:u], qmodel, degree, gamma, rbf_bw, RBFSampler_random_state=RBFSampler_random_state)
-                fqi_model2 = q_learning(States[:,u:(T+1),:], Rewards[:,u:T], Actions[:,u:T], qmodel, degree, gamma, rbf_bw, RBFSampler_random_state=RBFSampler_random_state)
+                States0 = States[:, :(u + 1), :]
+                Rewards0 = Rewards[:, :u]
+                Actions0 = Actions[:, :u]
+                fqi_model1 = q_learning(States0, Rewards0, Actions0, qmodel, degree, gamma, rbf_dim, rbf_bw, n_actions)
+                out1 = fqi_model1.fit(model=model1, max_iter=400, tol=1e-6)
+                # if the model did not converge, skip this and reset starting model
+                if out1.Qmodel[0][-1] > 5:
+                    print('\nModel diverges at u =', u, 'on Q[ 0,', u, ']. Qerror =', out1.Qmodel[0])
+                    # reset model to default if the previous u does not converge
+                    if select_basis:
+                        model1 = None
+                    else:
+                        model1 = copy(model)
+                    continue
+                else:
+                    model1 = fqi_model1.model
+                    W1_mat = out1.W_mat.todense()
+                    factor = (u * (T - u) / T) ** theta
+
+
+
+                fqi_model1 = q_learning(States[:,:(u+1),:], Rewards[:,:u], Actions[:,:u], qmodel, degree, gamma, rbf_dim, rbf_bw, n_actions)
+                fqi_model2 = q_learning(States[:,u:,:], Rewards[:,u:], Actions[:,u:], qmodel, degree, gamma, rbf_dim, rbf_bw, n_actions)
 
                 out1 = fqi_model1.fit(model=model1, max_iter=400, tol=1e-6)
                 out2 = fqi_model2.fit(model=model2, max_iter=400, tol=1e-6)
@@ -756,13 +691,13 @@ def pvalue(States, Rewards, Actions, T_total,
                         if n_grids > 0:
                             ## create list of grids
                             States_grid = rng.uniform(low=quants[0], high=quants[1], size=(n_grids, p_state))
-                            if degree == 0:
+                            if rbf_dim == 0 or degree == 0:
                                 States_grid_model = PolynomialFeatures(degree=1, include_bias=True).fit_transform(
                                     States_grid)
                             else:
                                 if qmodel == "rbf":
                                     States_grid_model = RBFSampler(gamma=rbf_bw, random_state=RBFSampler_random_state,
-                                                                   n_components=degree).fit_transform(States_grid)
+                                                                   n_components=rbf_dim).fit_transform(States_grid)
                                     States_grid_model = PolynomialFeatures(degree=1, include_bias=True).fit_transform(
                                         States_grid_model)
                                 elif qmodel == "polynomial":
@@ -845,11 +780,11 @@ def pvalue(States, Rewards, Actions, T_total,
                                 States_ref = multivariate_normal.rvs(mean=q_mean, cov=q_cov, size=n_grids, random_state=random_state)
 
                             # convert grids to design matrix
-                            if degree == 0:
+                            if rbf_dim == 0 or degree == 0:
                                 States_ref_model = PolynomialFeatures(degree=1, include_bias=True).fit_transform(States_ref)
                             else:
                                 if qmodel == "rbf":
-                                    States_ref_model = RBFSampler(gamma=rbf_bw, random_state=RBFSampler_random_state, n_components=degree).fit_transform(States_ref)
+                                    States_ref_model = RBFSampler(gamma=rbf_bw, random_state=RBFSampler_random_state, n_components=rbf_dim).fit_transform(States_ref)
                                     States_ref_model = PolynomialFeatures(degree=1, include_bias=True).fit_transform(States_ref_model)
                                 elif qmodel == "polynomial":
                                     States_ref_model = PolynomialFeatures(degree=degree, include_bias=True).fit_transform(States_ref)
@@ -878,7 +813,6 @@ def pvalue(States, Rewards, Actions, T_total,
                     # %% compute integral type test statistic wrt empirical distribution
                     ST_u_int_emp = np.mean(abs(model1.predict(fqi_model1.create_design_matrix(States, Actions, type='current', pseudo_actions=None)) -
                                                model2.predict(fqi_model2.create_design_matrix(States, Actions, type='current', pseudo_actions=None)))) * factor
-                    print("u =", u, "ST_u_int_emp =", ST_u_int_emp)
 
                     BT_u_int_emp = np.mean(abs(
                         fqi_model1.create_design_matrix(States, Actions, type='current', pseudo_actions=None) @ phi1 -
@@ -953,7 +887,7 @@ def pvalue(States, Rewards, Actions, T_total,
         random_states = np.random.randint(np.iinfo(np.int32).max, size=num_threads)
         conditions = list(zip(time_list, random_states))
         # parallel jobs
-        tests = Parallel(n_jobs=num_threads, prefer="threads")(delayed(test_u)(condition, degree) for condition in conditions)
+        tests = Parallel(n_jobs=num_threads, prefer="threads")(delayed(test_u)(condition, degree, rbf_dim) for condition in conditions)
         print("Done Multi-threading!")
 
         # obtain the max of ST and BT over all threads
@@ -976,8 +910,9 @@ def pvalue(States, Rewards, Actions, T_total,
             BT_int_emp = np.maximum(BT_int_emp, tests[nthread][7])
 
     else:
-        ST, BT, ST_normalized, BT_normalized, ST_int, BT_int, ST_int_emp, BT_int_emp = test_u((u_list, seed), degree)
+        ST, BT, ST_normalized, BT_normalized, ST_int, BT_int, ST_int_emp, BT_int_emp = test_u((u_list, seed), degree, rbf_dim)
 
 
     test_stats = namedtuple('test_states', ['ST', 'BT', 'ST_normalized', 'BT_normalized', 'ST_int', 'BT_int', 'ST_int_emp', 'BT_int_emp'])
     return test_stats(ST, BT, ST_normalized, BT_normalized, ST_int, BT_int, ST_int_emp, BT_int_emp)
+

@@ -4,6 +4,7 @@ Detect change points and clusters in mean.
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics.cluster import adjusted_rand_score
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import namedtuple
@@ -34,6 +35,7 @@ def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
         Xi[i] = mat
         yi[i] = States[i, changepoints.item(i)+1:,:]
     for g in range(K):
+        # print(g)
         y[g] = np.array(y[g]).T.reshape(-1,1)
         mat_list[g] = np.vstack(np.array(mat_list[g])) 
         mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g]) 
@@ -283,7 +285,7 @@ def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
     detect change in marginal distribution
     '''
     K = len(set(g_index))    
-    print("K",K)
+    # print("K",K)
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
     maxcusum_list = np.zeros(K)
@@ -570,7 +572,8 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
                             Actions, N, T, p, epsilon, kappa, K, cusum_forward, 
                             cusum_backward, C1=1, C2=1/2,C3=2, max_iter=30, 
                             init_cluster_range=None, nthread=0, C=1,
-                            g_index_init = None,clustering_warm_start=1):
+                            g_index_init = None,clustering_warm_start=1,
+                            loss_path =0):
     if g_index_init is None:
         if init_cluster_range is None:
             init_cluster_range = int(T/4) - 1
@@ -579,18 +582,23 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
                                changepoints=changepoints_0)
     else:
         g_index_0 = g_index_init
-    changepoint_list = np.zeros([N, max_iter])
-    g_index_list = np.zeros([N, max_iter])
+    changepoint_list = np.zeros([N, max_iter+1])
+    g_index_list = np.zeros([N, max_iter+1])
+    if loss_path:
+        loss_list = np.zeros(max_iter+1)
     changepoints_0 = np.zeros(N)
+    g_index_list[:,0] = g_index_0
     # changepoint_list[:, [0]] = changepoints_0.reshape(N, 1)
     iter_num=0
     for m in range(max_iter):
         # print("======= m", m, "=========")
-        out2=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N,
+        out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N,
                                T=T, kappa=kappa,
                                epsilon=epsilon, cusum_forward=cusum_forward, 
                                cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
-        changepoints = np.array(out2[0])
+        changepoints = np.array(out[0])
+        if loss_path:
+            loss_list[m] = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index_0)
         # print('cp',changepoints)
         # print('g ori', g_index_0,'changepoints_0',changepoints_0)
         if clustering_warm_start:
@@ -600,9 +608,9 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index, loss = clustering(States=States, Actions=Actions,example=example, g_index=None,
                                  N=N, T=T, K=K,changepoints=changepoints)
         changepoint_list[:, [m]] = changepoints.reshape(N, 1)
-        g_index_list[:,[m]] = g_index.reshape(N, 1)
+        g_index_list[:,[m+1]] = g_index.reshape(N, 1)
         # print('g',g_index)
-        if (m != 0 and(np.prod(changepoints == changepoints_0)) or m == max_iter -1):
+        if (m != 0 and(np.prod(changepoints == changepoints_0) and adjusted_rand_score(g_index_0.flatten(), g_index.flatten())) or m == max_iter -1):
             iter_num = m
             break
         else:
@@ -615,17 +623,33 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
     changepoints = np.array(out[0])
     # print('cp',changepoints)
     loss = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
+    if loss_path:
+        loss_list[m + 1] = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index_0)
     ic = ut.IC(loss, changepoints, g_index, N, T, K, C)
-    changepoint_list = changepoint_list[:, :(m+2)]
-    result = namedtuple("result", ["iter_num", "g_index", "changepoints",
-                                   "changepoint_eachiter","g_index_eachiter", "loss", "IC"])
-    return result(iter_num, g_index, changepoints, changepoint_list, loss, ic)
+    changepoint_list= np.hstack([changepoint_list[:, :m], changepoints])
+    g_index_list = g_index_list[:, :(m+1)]
+    # print('m',m)
+    if loss_path:
+        loss_list = loss_list[:, :iter_num]
+    try:
+        result = namedtuple("result", ["iter_num", "g_index", "changepoints",
+                                       "changepoint_eachiter","g_index_eachiter", "loss", "loss_list","IC"])
+        return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, loss_list, ic)
+    except:
+        result = namedtuple("result", ["iter_num", "g_index", "changepoints",
+                                       "changepoint_eachiter","g_index_eachiter", "loss", "IC"])
+        return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, ic)
 
 def changepointsNclustering(example, clustering, changepoint_detect, States,Actions,
                             N, T, p, epsilon, kappa, K, cusum_forward, 
                             cusum_backward, C1=1, C2=1/2, C3=2,
                             max_iter=30, max_iter_gmr = 50, nthread=0, C=1,
-                            changepoints_init=None,clustering_warm_start=1):
+                            changepoints_init=None,clustering_warm_start=1,
+                            loss_path = 0):
+    changepoint_list = np.zeros([N, max_iter+1])
+    g_index_list = np.zeros([N, max_iter+1])
+    if loss_path:
+        loss_list = np.zeros(max_iter+1)
     if changepoints_init is None:
         g_index = np.arange(0, N)
         out = changepoint_detect(g_index = g_index,States=States, Actions=Actions, example=example, N=N, T=T, kappa=kappa, epsilon=epsilon,
@@ -635,53 +659,70 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     else:
         changepoints_0 = changepoints_init
     # print(changepoints_0)
-    g_index = None
-    changepoint_list = np.zeros([N, max_iter])
+    g_index_0 = None
     changepoint_list[:, [0]] = changepoints_0.reshape(N, 1)
     iter_num = 0
-    for m in range(1, max_iter):
+    # g_index_0 = g_index
+    for m in range(max_iter):
         # print("======= m", m, "=========")
-        # print('g ori', g_index,'changepoints_0',changepoints_0)
         if clustering_warm_start == 0:
             g_index,loss = clustering(States=States, Actions=Actions,example=example,
-                                 N=N, T=T, K=K,changepoints=changepoints_0)
+                                  N=N, T=T, K=K,changepoints=changepoints_0)
         else:
-    
-            g_index,loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index,
-                                 N=N, T=T, K=K,changepoints=changepoints_0)
+            g_index,loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index_0,
+                                  N=N, T=T, K=K,changepoints=changepoints_0)
         # print("g_index update",g_index)
         out=changepoint_detect(g_index = g_index,States=States, Actions=Actions, example=example,N=N, T=T, kappa=kappa, epsilon=epsilon,
                                  cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                  C1=C1, C2=C2,nthread=nthread)
         changepoints = np.array(out[0])
-        # print(changepoints)
-        changepoint_list[:, [m]] = changepoints.reshape(N, 1)
-        if (m != 1 and np.prod(changepoints == changepoints_0)) or m == max_iter-1:
-            if m == max_iter-1 and np.sum(changepoints != changepoints_0):
+        changepoint_list[:, [m+1]] = changepoints.reshape(N, 1)
+        g_index_list[:,[m]] = g_index.reshape(N,1)
+        if loss_path:
+            loss_list[m] = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
+        if m == 0:
+            g_index_0 = -1*np.ones(N)
+        if ((np.prod(changepoints == changepoints_0) and adjusted_rand_score(g_index_0.flatten(), g_index.flatten()) == 1) 
+            or m == max_iter-1):
+            if m == max_iter-1 and (np.sum(changepoints != changepoints_0) or adjusted_rand_score(g_index_0.flatten(), g_index.flatten())<1): # not converge
                 # print("K", str(K),": Not converge")
                 # in case that changepoint detection does not converge
-                loss = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
+                if loss_path == False:
+                    loss = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
+                else:
+                    loss = loss_path[m]
             ic = ut.IC(loss, changepoints, g_index, N, T, K, C)
             # print("loss", loss, "ic", ic)
             iter_num = m
             break
         else:
             changepoints_0 = changepoints.copy()
+            g_index_0 = g_index.copy()
         iter_num = m
-    changepoint_list = changepoint_list[:, :(m+1)]
+    changepoint_list = changepoint_list[:, :(iter_num+1)]
+    g_index_list = g_index_list[:, :iter_num]
+    if loss_path:
+        loss_list = loss_list[:, :iter_num]
     # print(changepoints_0)
-    result = namedtuple("result", ["iter_num", "g_index", "changepoints",
-                                   "changepoint_eachiter", "loss", "IC"])
-    return result(iter_num, g_index, changepoints, changepoint_list, loss, ic)
+    try:
+        result = namedtuple("result", ["iter_num", "g_index", "changepoints",
+                                       "changepoint_eachiter","g_index_eachiter", "loss", "loss_list","IC"])
+        return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, loss_list, ic)
+    except:
+        result = namedtuple("result", ["iter_num", "g_index", "changepoints",
+                                       "changepoint_eachiter","g_index_eachiter", "loss", "IC"])
+        return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, ic)
        
 #%% fit
 def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2, 
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
         max_iter_gmr = 50, seed = 1, nthread=0, C=10,
-        changepoints_init=None,g_index_init = None,clustering_warm_start=1):
+        changepoints_init=None,g_index_init = None,clustering_warm_start=1,
+        loss_path =0):
     '''
     :param example: "mean", "conditional dis"
     :param inti: initial estimator, "changepoints", detect changepoints for each trajectrory separately, "clusters", kemans
+    :param loss_path: whether to calculate the loss of each iteration
     '''
     N = States.shape[0]
     # print(N)
@@ -750,7 +791,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
 def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1,
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
         max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,
-        g_index_init_list = None,clustering_warm_start=1):
+        g_index_init_list = None,clustering_warm_start=1, loss_path =0):
     '''
     Tuning the best K for clustering initialization from a list
     
@@ -768,7 +809,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
         out = fit(States, Actions, example, init, kappa, epsilon, K, 
                 C1, C2, C3, alpha, df, max_iter, init_cluster_range, 
                 max_iter_gmr, seed, nthread, C,changepoints_init, g_index_init_list[K_list.index(K)],
-                clustering_warm_start)
+                clustering_warm_start, loss_path)
       
         res.append(out)
         IC_model.append(out.IC)
