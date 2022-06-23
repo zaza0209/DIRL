@@ -1,24 +1,96 @@
 import platform, sys, os, re, pickle
 import tensorflow as tf
 import numpy as np
-from tensorflow import keras
+plat = platform.platform()
+print(plat)
+if plat == 'Windows-10-10.0.14393-SP0': ##local
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+    sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+elif plat == 'Linux-5.4.188+-x86_64-with-Ubuntu-18.04-bionic': # colab
+    os.chdir('/content/drive/My Drive/Colab Notebooks/heterRL')
+    sys.path.append("/content/drive/My Drive/Colab Notebooks/heterRL")
+elif plat == 'Linux-3.10.0-1160.6.1.el7.x86_64-x86_64-with-glibc2.17' or plat == 'Linux-3.10.0-1160.45.1.el7.x86_64-x86_64-with-glibc2.17':  # greatlakes
+    os.chdir("/home/mengbing/research/RL_nonstationary/code2/simulation_nonstationary_real")
+    sys.path.append("/home/mengbing/research/RL_nonstationary/code2/")
+elif plat == 'Linux-3.10.0-1160.15.2.el7.x86_64-x86_64-with-centos-7.9.2009-Core': #gcp
+    os.chdir("/home/limengbinggz_gmail_com/rl_nonstationary/simulation_nonstationary_real")
+    sys.path.append("/home/limengbinggz_gmail_com/rl_nonstationary/")
 
+#%%
+from tensorflow import keras
 from collections import deque
-import time
+# import time
 import random
 from scipy.stats import multivariate_normal
-os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
-# sys.path.append("/Users/mengbing/Documents/research/RL_nonstationary/cumsumrl/")
-sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+# os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+# sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 import simu.simulate_data_pd as sim
-RANDOM_SEED = 5
-tf.random.set_seed(RANDOM_SEED)
-np.random.seed(RANDOM_SEED)
-
+# %% 
+seed = int(sys.argv[1])
+signal_factor= float(sys.argv[2])
+method = sys.argv[3]
 # An episode a full game
-train_episodes = 300
-test_episodes = 100
-#%%
+train_episodes = int(sys.argv[4])
+test_size_factor = int(sys.argv[5])
+tf.random.set_seed(seed)
+np.random.seed(seed)
+#parameters to simulate data
+N=36
+# terminal timestamp
+T = 100
+# dimension of X0
+p = 2
+# mean vector of X0
+mean0 = 0
+# diagonal covariance of X0
+cov0 = 0.5
+# mean vector of random errors zt
+mean = 0
+# diagonal covariance of random errors zt
+cov = 0.25
+trans_setting = 'pwconst2'
+reward_setting = 'homo'
+
+gamma = 0.9
+# MIN_REPLAY_SIZE = 300
+coef1=[[signal_factor*0, signal_factor*0, signal_factor*-0.25],[signal_factor*0, signal_factor*0, signal_factor*0.25]]
+coef =[coef1,coef1[::-1]]# this is acceptable 0609
+signal = [[signal_factor*0, signal_factor*0], [signal_factor*0, signal_factor*0]]
+nrep = N*test_size_factor
+
+#%% environment setup
+def setpath(seed):
+    # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+    append_name = '_N' + str(N) + '_1d'
+    if not os.path.exists('results/value_evaluation'):
+        os.makedirs('results/value_evaluation', exist_ok=True)
+    data_path = 'results/value_evaluation/coef'+re.sub("\\ ", "",re.sub("\\.", "", re.sub("\\]","", re.sub("\\[", "", re.sub("\\, ", "", str(coef1))))))+'/sim_result_trans' + trans_setting + '_reward' + reward_setting + '_gamma' + re.sub("\\.", "", str(gamma)) + \
+                                                 append_name
+    if not os.path.exists(data_path):
+        os.makedirs(data_path, exist_ok=True)
+    data_path += '/sim_result' + method + '_gamma' + re.sub("\\.", "", str(gamma)) + \
+                 append_name + '_' + str(seed)
+    if not os.path.exists(data_path):
+        os.makedirs(data_path, exist_ok=True)
+    os.chdir(data_path)
+    return
+# setpath(seed)
+
+def save_data(file_name, estimated_value,std_value,converge,model):
+    setpath(seed)
+    with open(file_name, "wb")as f:
+        pickle.dump({'value':estimated_value,
+                     'std':std_value,
+                     # 'path':estimated_value_path,
+                     'converge':converge},f)
+    model.save('model')
+    return
+# direct the screen output to a file
+stdoutOrigin = sys.stdout
+sys.stdout = open("results/value_evaluation/log_" + method + ".txt", "w")
+print("\nName of Python script:", sys.argv[0])
+sys.stdout.flush()
+#%% environment
 def generate_initial_state():
     St = np.ones(2)
     St[0] = np.random.normal(mean0, cov0)  # step count of week t
@@ -56,7 +128,7 @@ def reward(model, episodes=500, T=100):
             rewards += r 
     rewards = rewards / episodes
     return rewards
-#%%
+#%% agent
 def agent(state_shape, action_shape):
     """ The agent maps X-states to Y-actions
     e.g. The neural network output is [.1, .7, .1, .3]
@@ -77,13 +149,13 @@ def agent(state_shape, action_shape):
 def get_qs(model, state):
     return model.predict(state.reshape([1, state.shape[0]]), verbose=0)[0]
 
-def train(discount_factor, replay_memory, model, target_model):
+def train(discount_factor, replay_memory, model, target_model,MIN_REPLAY_SIZE=300):
     learning_rate = 0.7  # Learning rate
     # MIN_REPLAY_SIZE = 1000
     if len(replay_memory) < MIN_REPLAY_SIZE:
         return
     print('train')
-    batch_size = 64 * 2
+    batch_size = int(MIN_REPLAY_SIZE/8)
     mini_batch = random.sample(replay_memory, batch_size)
     current_states = np.array([transition[0] for transition in mini_batch])
     current_qs_list = model.predict(current_states, verbose=0)
@@ -106,9 +178,12 @@ def train(discount_factor, replay_memory, model, target_model):
     model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True)
 
 
-#%%
-def run(States, Actions, Rewards, tol = 1e-5):
-    N = States.shape[0]
+#%% main
+def run(States, Actions, Rewards, MIN_REPLAY_SIZE=300, tol = 1e-5):
+    if type(States) == list:
+        N = len(States)
+    else:
+        N = States.shape[0]
 
     # 1. Initialize the Target and Main models
     state_space_shape = (2,)
@@ -118,31 +193,42 @@ def run(States, Actions, Rewards, tol = 1e-5):
     target_model = agent(state_space_shape, 2)
     target_model.set_weights(model.get_weights())
     target_old = agent(state_space_shape, 2)
-    replay_memory = deque(maxlen=50_000)
-
+    target_old.set_weights(model.get_weights())
+    
     steps_to_update_target_model = 0
     cum_rewards= 0.0
     converge=0
     
     for episode in range(train_episodes):
+        print('episode', episode)
+        replay_memory = deque(maxlen=50_000)
         steps_to_update_target_model=0
         for i in range(N):
-            T = Rewards[i,:].shape[0]
+            if type(States) == list:
+                states = States[i]
+                rewards = Rewards[i]
+                actions = Actions[i]
+            else:
+                states = States[i,:,:]
+                rewards = Rewards[i, :]
+                actions = Actions[i, :]
+            print('i',i)
+            T = rewards.shape[0]
             for t in range(T):
-                # print('t',t)
+                print('t',t)
                 steps_to_update_target_model += 1
                 sars1 = []
-                sars1.append(States[i,t,:])
-                sars1.append(Actions[i,t])
-                sars1.append(Rewards[i,t])
-                sars1.append(States[i,t+1,:])
+                sars1.append(states[t,:])
+                sars1.append(actions[t])
+                sars1.append(rewards[t])
+                sars1.append(states[t+1,:])
                 sars1.append(int(t==T-1))
                 replay_memory.append(sars1)
                 # 3. Update the Main Network using the Bellman Equation
                 if steps_to_update_target_model % 4 == 0:
-                    train(gamma, replay_memory, model, target_model)
+                    train(gamma, replay_memory, model, target_model, MIN_REPLAY_SIZE)
                 
-                if steps_to_update_target_model >= 100:
+                if steps_to_update_target_model >= 99 and len(replay_memory) > MIN_REPLAY_SIZE :
                     print('Copying main network weights to the target network weights')
                     target_old.set_weights(target_model.get_weights())
                     target_model.set_weights(model.get_weights())
@@ -160,34 +246,14 @@ def run(States, Actions, Rewards, tol = 1e-5):
             break
         print('Total training rewards: {} after n steps = {} with final reward = {}'.format(
             cum_rewards, episode, reward))
+    if train_episodes == 0:
+        episode = -1
     return target_model,episode
 
-# %% parameters to simulate data
-N=36
-# terminal timestamp
-T = 100
-# dimension of X0
-p = 2
-# mean vector of X0
-mean0 = 0
-# diagonal covariance of X0
-cov0 = 0.5
-# mean vector of random errors zt
-mean = 0
-# diagonal covariance of random errors zt
-cov = 0.25
-trans_setting = 'pwconst2'
-reward_setting = 'homo'
-mag_factor=3
-gamma = 0.9
-MIN_REPLAY_SIZE = 300
-coef1=[[mag_factor*0, mag_factor*0, mag_factor*-0.25],[mag_factor*0, mag_factor*0, mag_factor*0.25]]
-coef =[coef1,coef1[::-1]]# this is acceptable 0609
-signal = [[mag_factor*0, mag_factor*0], [mag_factor*0, mag_factor*0]]
-seed=0
-#%%
+
+#%% gen data
 def gen_dat(N, T, coef, signal, changepoint_list=None, seed=1):
-    np.random.seed(seed)
+    # np.random.seed(seed)
     if changepoint_list is None:
         changepoint_list = [int(T/2) + int(0.1 * T) - 1,int(T/2) - int(0.1 * T) - 1] 
     w = 0.01
@@ -249,5 +315,82 @@ def gen_dat(N, T, coef, signal, changepoint_list=None, seed=1):
     return States, Rewards, Actions, changepoints_true, g_index_true
 
 States, Rewards, Actions, changepoints_true, g_index_true = gen_dat(N, T, 
-                                                      coef, signal,None,seed + 100)
+                                                      coef, signal,None,None)
+#%% overall
+if method == "overall":
+    target_model_overall, episode = run(States, Actions, Rewards)
+    opt_values_overall = []
+    for i in range(nrep):
+        observation = generate_initial_state()
+        encoded_reshaped = observation.reshape([1, observation.shape[0]])
+        predicted = target_model_overall.predict(encoded_reshaped, verbose=0).flatten()
+        opt_values_overall.append(max(predicted))
+    print("overall value:", np.mean(opt_values_overall)) #signal0.5: 0.17776427
+    file_name = method + '.dat'
+    save_data(file_name, np.mean(opt_values_overall), np.std(opt_values_overall)/np.sqrt(nrep), int(episode == train_episodes), target_model_overall)
+#%% oracle clusterings
+if method == "oracle_clusterings":
+    target_model_cluster1, episode_cluster1 = run(States[:int(N/2), :, :], Actions[:int(N/2), :], Rewards[:int(N/2), :])
+    target_model_cluster2, episode_cluster2 = run(States[int(N/2):, :, :], Actions[int(N/2):, :], Rewards[int(N/2):, :])
+    opt_values_cluster = []
+    for i in range(nrep):
+        if i < nrep/2:
+            observation = generate_initial_state()
+            encoded_reshaped = observation.reshape([1, observation.shape[0]])
+            predicted = target_model_cluster1.predict(encoded_reshaped, verbose=0).flatten()
+            opt_values_cluster.append(max(predicted))
+        else:
+            observation = generate_initial_state()
+            encoded_reshaped = observation.reshape([1, observation.shape[0]])
+            predicted = target_model_cluster2.predict(encoded_reshaped, verbose=0).flatten()
+            opt_values_cluster.append(max(predicted))
+    print("oracle cluster value:", np.mean(opt_values_cluster)) #signal0.5: 0.17776427
+
+# #%% oracle change points
+# States_list = []
+# Actions_list = []
+# Rewards_list = []
+# # for i in range(N):
+# #     States_list.append(States[i, int(changepoints_true[i]):, :].reshape((1, -1, p)))
+# #     Actions_list.append(Actions[i, int(changepoints_true[i]):].reshape(1,-1))
+# #     Rewards_list.append(Rewards[i, int(changepoints_true[i]):].reshape(1,-1))
+# for i in range(N):
+#     States_list.append(States[i, int(changepoints_true[i]):, :])
+#     Actions_list.append(Actions[i, int(changepoints_true[i]):])
+#     Rewards_list.append(Rewards[i, int(changepoints_true[i]):])
+
+# target_model_cp = run(States_list, Actions_list, Rewards_list)
+# opt_values_cp = []
+# for i in range(nrep):
+#         observation = generate_initial_state()
+#         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+#         predicted = target_model_cp.predict(encoded_reshaped, verbose=0).flatten()
+#         opt_values_cp.append(max(predicted))
+# print("oracle cp value:", np.mean(opt_values_cp)) #signal0.5: 0.17776427
+# #%% oracle
+# target_model_oracle1, episode_oracle1 = run(States[:int(N/2), int(changepoints_true[0]):, :], Actions[:int(N/2), int(changepoints_true[0]):], Rewards[:int(N/2), int(changepoints_true[0]):])
+# target_model_oracle2, episode_oracle2 = run(States[int(N/2):, int(changepoints_true[int(N/2)]):, :], Actions[int(N/2):, int(changepoints_true[int(N/2)]):], Rewards[int(N/2):, int(changepoints_true[int(N/2)]):])
+# opt_values_oracle = []
+# for i in range(nrep):
+#     if i < nrep/2:
+#         observation = generate_initial_state()
+#         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+#         predicted = target_model_oracle1.predict(encoded_reshaped, verbose=0).flatten()
+#         opt_values_oracle.append(max(predicted))
+#     else:
+#         observation = generate_initial_state()
+#         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+#         predicted = target_model_oracle2.predict(encoded_reshaped, verbose=0).flatten()
+#         opt_values_oracle.append(max(predicted))
+# print("oracle value:", np.mean(opt_values_oracle)) #signal0.5: 0.17776427
+# #%% indi
+# opt_values_indi = []
+# for i in range(N):
+#     target_model_i = run(States[i,:,:].reshape((1,-1,p)), Actions[i, :].reshape((1,-1)), Rewards[i, :].reshape((1,-1)), MIN_REPLAY_SIZE=50)
+#     for j in range(int(nrep/N)):
+#         observation = generate_initial_state()
+#         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+#         predicted = target_model_i.predict(encoded_reshaped, verbose=0).flatten()
+#         opt_values_indi.append(max(predicted))
+# print("indi value:", np.mean(opt_values_indi)) #signal0.5: 0.17776427
 

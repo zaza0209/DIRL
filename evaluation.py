@@ -194,7 +194,7 @@ def train_test_kernel(States, Rewards, Actions, test_index, sampled_time_points,
 
 
 def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
-                    qmodel='polynomial', gamma=0.95, model=None, max_iter=3, tol=1e-4,
+                    qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4,
                     nfold = 2, num_threads = 3,
                     metric = 'ls', num_basis = 1, verbose=False,
                     kernel_regression=False, sampled_time_points=None):
@@ -264,12 +264,12 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
                            qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
             
         # parallel jobs
-        # test_errors = Parallel(n_jobs=num_threads, prefer = 'threads')(delayed(run_one)(fold) for fold in range(nfold))
+        test_errors = Parallel(n_jobs=num_threads, prefer = 'threads')(delayed(run_one)(fold) for fold in range(nfold))
         # print(test_errors)
-        test_errors = []
-        for fold in range(nfold):
-            # print(fold)
-            test_errors.append(run_one(fold))
+        # test_errors = []
+        # for fold in range(nfold):
+        #     print(fold)
+        #     test_errors.append(run_one(fold))
         test_error = np.mean(test_errors)
         if verbose:
             print(fit_param)

@@ -184,8 +184,8 @@ class simulate_data():
         # if T1 > self.T:
         #     print("error: terminal time T1 of the simulated trajectory should be no more than the total number of time points T")
         #     return 0
-        T0 = 0 
-        T1 = self.T - 1
+        # T0 = 0 
+        # T1 = self.T - 1
         # set seed
         np.random.seed(seed)
         States = np.zeros([self.N, T1-T0 + 1, 1])  # S[i][t]

@@ -39,6 +39,8 @@ mag_factor=3
 # g_index_true = np.append(np.append(np.zeros(int(N/2)), np.ones(int(N/2))))
 # changepoints_true = np.append(np.append(89*np.ones(int(N/3)), 79*np.ones(int(N/3))), 69*np.ones(int(N/3)))
 signal_factor = 0.5
+
+MIN_REPLAY_SIZE = 1000
 #%%
 import tensorflow as tf
 import numpy as np
@@ -80,7 +82,7 @@ def get_qs(model, state):
 
 def train(discount_factor, replay_memory, model, target_model, done):
     learning_rate = 0.7  # Learning rate
-    MIN_REPLAY_SIZE = 1000
+
     if len(replay_memory) < MIN_REPLAY_SIZE:
         return
     print('train')
@@ -180,7 +182,7 @@ def run(transition_matrix, tol = 1e-5):
             num_rewards += 1
             mean_cr = cum_rewards/num_rewards
             print('mean_cr',mean_cr)
-            done = steps_to_update_target_model >= 150
+            # done = steps_to_update_target_model >= 150
             replay_memory.append([observation, action, reward, new_observation, done])
 
             # 3. Update the Main Network using the Bellman Equation
@@ -190,7 +192,7 @@ def run(transition_matrix, tol = 1e-5):
             observation = new_observation
             total_training_rewards += reward
 
-            if done:
+            if steps_to_update_target_model >= 99:
                 print('Total training rewards: {} after n steps = {} with final reward = {}'.format(
                     total_training_rewards, episode, reward))
                 total_training_rewards += 1
@@ -224,14 +226,14 @@ transition_matrix[1] = np.array([[0,0],
 
 target_model_1, episode_1 = run(transition_matrix)
 # now generate a bunch of initial states and calculate the optimal value
-nrep = 200
-opt_values = []
+nrep = N*10
+opt_values_1 = []
 for i in range(nrep):
     observation = generate_initial_state()
     encoded_reshaped = observation.reshape([1, observation.shape[0]])
     predicted = target_model_1.predict(encoded_reshaped, verbose=0).flatten()
-    opt_values.append(max(predicted))
-print("Optimal value:", np.mean(opt_values)) #0.9402763
+    opt_values_1.append(max(predicted))
+print("Optimal value:", np.mean(opt_values_1)) #signal0.5: 0.16361411
 
 
 ## cluster 2:
@@ -244,12 +246,11 @@ transition_matrix[1] = np.array([[0,0],
                                                                      [0,-0.25]])
 target_model_2, episode_2 = run(transition_matrix)
 # now generate a bunch of initial states and calculate the optimal value
-nrep = 200
 opt_values_2 = []
 for i in range(nrep):
     observation = generate_initial_state()
     encoded_reshaped = observation.reshape([1, observation.shape[0]])
     predicted = target_model_2.predict(encoded_reshaped, verbose=0).flatten()
     opt_values_2.append(max(predicted))
-print("Optimal value:", np.mean(opt_values_2)) # 0.91133577
+print("Optimal value:", np.mean(opt_values_2)) # signal0.5: 0.45594767
 

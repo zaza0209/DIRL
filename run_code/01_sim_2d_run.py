@@ -101,7 +101,7 @@ coef =[[[-0.1, 0, 0.25],[0.1, 0.4, 0.25],[-0.2, 0, 0.5],[-0.1, 0.25, 0.75]],
 #         [[0, 0.6, 0.75], [-0.1, -0.4, 0.75], [0.35, 0.125, 0.625]]] # shift in mean
 
 changepoint_list = [29, 49, 69] 
-def gen_dat(N, T, K, coef, signal, changepoint_list=changepoint_list,
+def gen_dat(N, T, K, coef, signal, changepoint_list=None,
             trans_setting="pwsonst2", seed=1):
     np.random.seed(seed)
     if changepoint_list is None:

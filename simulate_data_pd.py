@@ -164,7 +164,7 @@ class simulate_data():
         :return: a scalar of reward at time t
         '''
         # print('self.St[0]', self.St[0], '0.25*self.St[0]**2', 0.25*self.St[0]**2, '4*self.St[0]',4*self.St[0])
-        return 0.25*np.sum(self.St[0])**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St[0])
+        return 0.25*np.sum(self.St)**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St)
         # return 0.5 * self.St[0]
 
 
@@ -229,7 +229,7 @@ class simulate_data():
         # return 0 * x
 
     def simulate(self, mean0, cov0, transition_function, reward_function, #seed=0,
-                 S0=None, A0=None, T0=0, T1=99, optimal_policy_model=None):
+                 S0=None, A0=None, T0=0, T1=99, optimal_policy_model=None, path_index = None):
         '''
         simulate states, rewards, and action data
         :param mean0: mean vector for the initial state S_0
@@ -244,8 +244,8 @@ class simulate_data():
         # if T1 > self.T:
         #     print("error: terminal time T1 of the simulated trajectory should be no more than the total number of time points T")
         #     return 0
-        T0 = 0 
-        T1 = self.T - 1
+        # T0 = 0 
+        # T1 = self.T - 1
         # set seed
         # np.random.seed(seed)
         States = np.zeros([self.N, T1-T0 + 1, self.p])  # S[i][t]
@@ -318,7 +318,7 @@ class simulate_data():
                 # generate action
                 myState[0, 0, :] = self.St
                 # print('myState', myState, 'shape', myState.shape)
-                self.At = optimal_policy_model.predict(myState).opt_action
+                self.At = optimal_policy_model.predict(myState, path_index = path_index).opt_action
                 Actions[i, t] = self.At
 
                 # generate immediate response R_i,t
@@ -333,7 +333,7 @@ class simulate_data():
                     # print(t)
                     myState[0, 0, :] = self.St
                     # generate policy
-                    self.At = optimal_policy_model.predict(myState).opt_action
+                    self.At = optimal_policy_model.predict(myState, path_index = path_index).opt_action
                     Actions[i, t] = self.At
 
                     # generate immediate response R_i,t
