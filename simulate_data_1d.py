@@ -19,6 +19,7 @@ class simulate_data():
         # :param mean0: mean vector for the initial state S_0
         # :param cov0: covariance matrix for the initial state S_0
         '''
+        print('changepoint',changepoint)
         self.N = N
         self.T = T
         # initialize A_t
@@ -43,17 +44,19 @@ class simulate_data():
         return 0.5 * (2.0 * self.At - 1.0) * self.St + np.random.normal(mean, cov, 1)
 
 
-    def transition_pwconstant2(self, t, mean, cov, coef =[[0.5, 0.5, 0.5, -0.5],[0.5,1.5,0.5,0.5]], signal = 0):
+    def transition_pwconstant2(self, t, mean, cov, coef =[[0, 0.25, 0, 0.25],[0,0.25,0,-0.25]], signal = 0):
         '''
         Generate time-homogeneous transition at time t
         # :param t: the time at which we generate a transition
         :return: a scalar of state
         '''
         if t < self.Td2:
+            print('<t',t,'self.Td2:',self.Td2)
             return (coef[0][1] *self.St + coef[0][2] * (2.0 * self.At - 1.0) 
                     + coef[0][3] * self.St * (2.0 * self.At - 1.0) + coef[0][0] 
                     + np.random.normal(mean, cov, 1))
         elif t >= self.Td2:
+            print('>t',t,'self.Td2:',self.Td2)
             # print("t>Td2")
             # tmp =(coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
             #         + coef[1][3] * self.St * (2.0 * self.At - 1.0) 

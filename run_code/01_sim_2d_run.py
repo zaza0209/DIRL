@@ -166,7 +166,10 @@ def gen_dat(N, T, K, coef, signal, changepoint_list=None,
     g_index_true = np.append([np.zeros(int(N/3)), np.ones(int(N/3))], 2*np.ones(int(N/3)))
     Actions = Actions.astype(int)
     return States, Rewards, Actions, changepoints_true, g_index_true
-
+States, Rewards, Actions, changepoints_true, g_index_true = gen_dat(N, T, K, 
+                                                      coef, signal,None,
+                                                      trans_setting,seed + 100)
+plt.plot(States[0,:,0])
 
 #%% plot trajectory
 # fig, ax = plt.subplots()
@@ -327,6 +330,7 @@ for seed in range(10,50):
     States, Rewards, Actions, changepoints_true, g_index_true = gen_dat(N, T, K, 
                                                           coef, signal,None,
                                                           trans_setting,seed + 100)
+    # plt.plot(States[0,:,0])
     # startTime = datetime.now()
     # out = mean_detect.fit_tuneK(range(1,6),States, Actions, example="cdist", seed = seed, nthread=nthread, max_iter=5)
     out = mean_detect.fit(States, Actions, K=3, C3=C3, 

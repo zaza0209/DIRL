@@ -10,10 +10,11 @@ import platform, sys, os, pickle, re
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-os.chdir("C:\\Users\\test\\Dropbox\\CUSUM-RL-main\\simulation_1d")
-sys.path.append("C:\\Users\\test\\Dropbox\\CUSUM-RL-main")
-import functions.compute_test_statistics as stat
-import functions.simulate_data_1d as sim
+sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu")
+# os.chdir("C:\\Users\\test\\Dropbox\\CUSUM-RL-main\\simulation_1d")
+# sys.path.append("C:\\Users\\test\\Dropbox\\CUSUM-RL-main")
+# import simu.compute_test_statistics as stat
+import simu.simulate_data_1d as sim
 
 '''
 Arguments passed:
@@ -51,7 +52,7 @@ seed = 29
 kappa = 55
 num_threads = 5
 gamma = 0.9
-trans_setting = 'smooth'
+trans_setting = 'pwconst2'
 reward_setting = 'homo'
 N = int(25)
 RBFSampler_random_state = 1
@@ -100,12 +101,13 @@ cov0 = 0.5
 # mean vector of random errors zt
 mean = 0
 # diagonal covariance of random errors zt
-cov = 0.25
+cov = 0
 
 # width of smooth transition function
 w = 0.01
 delta = 1/10
-sim_dat = sim.simulate_data(N, T, delta)
+cp = int(T/2)
+sim_dat = sim.simulate_data(N, T,cp)
 if trans_setting == 'homo' and reward_setting == 'pwconst2':
     def mytransition_function(t):
         return sim_dat.transition_homo(mean, cov)
@@ -130,11 +132,12 @@ elif trans_setting == 'smooth' and reward_setting == 'homo':
     States, Rewards, Actions = sim_dat.simulate(mean0, cov0, mytransition_function, myreward_function, seed)
 
 # normalize state variables
-def transform(x):
-    return (x - np.mean(x)) / np.std(x)
-for i in range(1):
-    States[:,:,i] = transform(States[:,:,i])
-
+# def transform(x):
+#     return (x - np.mean(x)) / np.std(x)
+# for i in range(1):
+#     States[:,:,i] = transform(States[:,:,i])
+plt.plot(States[0,:,:])
+States[0,:,:]
 
 # %% environment setup
 # create folder under seed if not existing

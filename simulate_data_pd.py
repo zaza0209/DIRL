@@ -67,7 +67,7 @@ class simulate_data():
 
 
     def transition_pwconstant2(self, t, mean, cov, coef = [[0.5, 0.5, 0.5],[0.5,0.5,0.75]], 
-                               signal = [0,0]):
+                               signal = [0,0], transition_matrix = None):
         '''
         Generate time-homogeneous transition at time t
         # :param t: the time at which we generate a transition
@@ -75,36 +75,38 @@ class simulate_data():
         '''
         # if M is None:
         #     coef = [[0.5, 0.5, 0.5],[0.5,0.5,0.75]]
-        M1 = (coef[0][0]-coef[0][1])* np.eye(self.p) + coef[0][1]*np.ones([self.p, self.p])
-        Avec = np.ones(self.p)
-        for i in range(self.p):
-            if divmod(i, 2)[1] == 0:
-                Avec[i] = coef[0][2] * (2*self.At - 1)
-            else:
-                Avec[i] =  coef[0][2] * (1 - 2*self.At)
-        M1 = M1 + np.diag(Avec)
-        
-        M2 = (coef[1][0]-coef[1][1])* np.eye(self.p) + coef[1][1]*np.ones([self.p, self.p])
-        Avec = np.ones(self.p)
-        for i in range(self.p):
-            if divmod(i, 2)[1] == 0:
-                Avec[i] = coef[1][2] * (2*self.At - 1)
-            else:
-                Avec[i] =  coef[1][2] * (1 - 2*self.At)
-        M2 = M2 + np.diag(Avec)
-        M = [None] * 2
-        M[0] = M1
-        M[1] = M2
-        # if t == 60:
-            # print('M2',M2)
-            # print('coef[1]',coef[1])
-            # print('self.St',self.St)
-            # print('self.At',self.At)
-            # print('M[1].dot(self.St)+ np.random.normal(mean, cov, self.p)',M[1].dot(self.St)+ np.random.normal(mean, cov, self.p))
-        if t < self.Td2:
-            return (M[0].dot(self.St) +  signal[0] + np.random.normal(mean, cov, self.p))
-        elif t >= self.Td2:
-            return (M[1].dot(self.St) +  signal[1] + np.random.normal(mean, cov, self.p))
+        if transition_matrix is None:
+            M1 = (coef[0][0]-coef[0][1])* np.eye(self.p) + coef[0][1]*np.ones([self.p, self.p])
+            Avec = np.ones(self.p)
+            for i in range(self.p):
+                if divmod(i, 2)[1] == 0:
+                    Avec[i] = coef[0][2] * (2*self.At - 1)
+                else:
+                    Avec[i] =  coef[0][2] * (1 - 2*self.At)
+            M1 = M1 + np.diag(Avec)
+            
+            M2 = (coef[1][0]-coef[1][1])* np.eye(self.p) + coef[1][1]*np.ones([self.p, self.p])
+            Avec = np.ones(self.p)
+            for i in range(self.p):
+                if divmod(i, 2)[1] == 0:
+                    Avec[i] = coef[1][2] * (2*self.At - 1)
+                else:
+                    Avec[i] =  coef[1][2] * (1 - 2*self.At)
+            M2 = M2 + np.diag(Avec)
+            M = [None] * 2
+            M[0] = M1
+            M[1] = M2
+            if t < self.Td2:
+                return (M[0].dot(self.St) +  signal[0] + np.random.normal(mean, cov, self.p))
+            elif t >= self.Td2:
+                return (M[1].dot(self.St) +  signal[1] + np.random.normal(mean, cov, self.p))
+     
+        else:
+            M = transition_matrix
+            if t < self.Td2:
+                return (M[0].dot(self.St) + np.random.normal(mean, cov, self.p))
+            elif t >= self.Td2:
+                return (M[1].dot(self.St) +  np.random.normal(mean, cov, self.p))
           
 
     def transition_smooth2(self, t, mean, cov, w=1.0, coef = 0.5, signal= 0):
@@ -164,6 +166,7 @@ class simulate_data():
         :return: a scalar of reward at time t
         '''
         # print('self.St[0]', self.St[0], '0.25*self.St[0]**2', 0.25*self.St[0]**2, '4*self.St[0]',4*self.St[0])
+        # print('St', self.St, 'At',self.At)
         return 0.25*np.sum(self.St)**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St)
         # return 0.5 * self.St[0]
 
@@ -318,7 +321,7 @@ class simulate_data():
                 # generate action
                 myState[0, 0, :] = self.St
                 # print('myState', myState, 'shape', myState.shape)
-                self.At = optimal_policy_model.predict(myState, path_index = path_index).opt_action
+                self.At = optimal_policy_model.predict(myState).opt_action
                 Actions[i, t] = self.At
 
                 # generate immediate response R_i,t
@@ -333,7 +336,7 @@ class simulate_data():
                     # print(t)
                     myState[0, 0, :] = self.St
                     # generate policy
-                    self.At = optimal_policy_model.predict(myState, path_index = path_index).opt_action
+                    self.At = optimal_policy_model.predict(myState).opt_action
                     Actions[i, t] = self.At
 
                     # generate immediate response R_i,t
