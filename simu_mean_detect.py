@@ -15,10 +15,10 @@ import simu.utilities as ut
 
 #%%
 def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
-    p = States.shape[2]    
+    p = States.shape[2]
     g_index = g_index.astype(int)
     changepoints = changepoints.astype(int)
-    
+
     mat_list = [[] for i in range(K)]
     y = [[] for i in range(K)]
     Xi = [[] for i in range(N)]
@@ -37,12 +37,12 @@ def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
     for g in range(K):
         # print(g)
         y[g] = np.array(y[g]).T.reshape(-1,1)
-        mat_list[g] = np.vstack(np.array(mat_list[g])) 
-        mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g]) 
-        
-    X = block_diag(*mat_list)    
+        mat_list[g] = np.vstack(np.array(mat_list[g]))
+        mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g])
+
+    X = block_diag(*mat_list)
     y = np.vstack(y)
-    
+
     reg = LinearRegression(fit_intercept=False) # coef: [beta1, beta2, ..., betaK] for K clusters
     res=reg.fit(X, y)
     loss =  0
@@ -89,7 +89,7 @@ def clustering_marginal_dis(States, N, T, K, changepoints,Actions=None, g_index=
         mean[k] = np.mean(y[k])
         var[k] = np.var(y[k])
     g_index_new = np.zeros(N, dtype=int)
-    
+
     # iteration begin
     for m in range(max_iter_gmr):
         # print('m',m)
@@ -129,11 +129,11 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         # print(K)
         g_index = np.random.choice(range(K), size = N)
     # g_index = np.append(np.zeros(int(N/2)), np.ones(int(N/2)))
-            
+
     g_index = g_index.astype(int)
     # print('gmr: beginning g_index', g_index)
     changepoints = changepoints.astype(int)
-    
+
     mat_list = [[] for i in range(K)]
     y = [[] for i in range(K)]
     Xi = [[] for i in range(N)]
@@ -151,12 +151,12 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         yi[i] = States[i, changepoints.item(i)+1:,:]
     for g in range(K):
         y[g] = np.array(y[g]).T.reshape(-1,1)
-        mat_list[g] = np.vstack(np.array(mat_list[g])) 
-        mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g]) 
-        
-    X = block_diag(*mat_list)    
+        mat_list[g] = np.vstack(np.array(mat_list[g]))
+        mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g])
+
+    X = block_diag(*mat_list)
     y = np.vstack(y)
-    
+
     reg = LinearRegression(fit_intercept=False) # coef: [beta1, beta2, ..., betaK] for K clusters
     res=reg.fit(X, y)
     g_index_new = np.zeros(g_index.shape, dtype=int)
@@ -229,15 +229,15 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             for g in range(K):
                 # print('g',g)
                 y[g] = np.array(y[g]).T.reshape(-1,1)
-                mat_list[g] = np.vstack(np.array(mat_list[g])) 
-                mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g]) 
-                
-            X = block_diag(*mat_list)    
+                mat_list[g] = np.vstack(np.array(mat_list[g]))
+                mat_list[g] = np.kron(np.eye(p,dtype=int),mat_list[g])
+
+            X = block_diag(*mat_list)
             y = np.vstack(y)
             res=reg.fit(X, y)
     return g_index, loss
-        
-    
+
+
 #%% changepoint detection function
 def changemean_detect(g_index, States, N, T, kappa, epsilon,Actions=None, cusum_forward=None,
                       cusum_backward=None, C1=None, C2=None, C3=None, alpha = 0.05, df=5, nthread=0):
@@ -252,17 +252,17 @@ def changemean_detect(g_index, States, N, T, kappa, epsilon,Actions=None, cusum_
     for k in range(K):
         maxcusum = 0
         def run_one(u):
-            return(np.sqrt((T-u)*(u-T+kappa)/(kappa**2))*np.sum(g_index == k) 
+            return(np.sqrt((T-u)*(u-T+kappa)/(kappa**2))*np.sum(g_index == k)
                          * np.linalg.norm(
-                             np.dot((g_index == k).reshape(1, N), 
+                             np.dot((g_index == k).reshape(1, N),
                                     (cusum_forward[:, u] - cusum_backward[:, u+1]).reshape(N,1)), ord = 2))
-        if nthread !=0:  
+        if nthread !=0:
             res = Parallel(n_jobs = nthread)(delayed(run_one)(u) for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1))
             tauk[k] =int(T-epsilon*T)-1- res.index(max(res))
             maxcusum = np.max(res)
         else:
             for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1):
-                cusum_tmp = run_one(u)       
+                cusum_tmp = run_one(u)
                 if u == int(T-epsilon*T)-1:
                     maxcusum = cusum_tmp
                     maxcusum_list[k] = maxcusum
@@ -278,13 +278,13 @@ def changemean_detect(g_index, States, N, T, kappa, epsilon,Actions=None, cusum_
         changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
 
-def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None, 
-                              cusum_forward=None, cusum_backward=None, C1=None, 
+def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
+                              cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None, C3=None, alpha = 0.05, df = 5, nthread=0):
     '''
     detect change in marginal distribution
     '''
-    K = len(set(g_index))    
+    K = len(set(g_index))
     # print("K",K)
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
@@ -299,10 +299,10 @@ def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
                y2.append(States[i, u+1:,:])
                y.append(States[i, :,:])
        y1 = np.vstack(np.array(y1))
-       y2 = np.vstack(np.array(y2)) 
+       y2 = np.vstack(np.array(y2))
        y = np.vstack(np.array(y))
        var0 = np.var(y)
-       var1 = (np.var(y1) * np.size(y1)+np.var(y2)*np.size(y2))/(T*np.sum(g_index == k))
+       var1 = (np.var(y1) * np.size(y1)+np.var(y2)*np.size(y2))/(np.sum(g_index == k))#*T
        mean0 = np.mean(y)
        mean1 = np.mean(y1)
        mean2 = np.mean(y2)
@@ -335,7 +335,7 @@ def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
                 #         y2.append(States[i, u+1:,:])
                 #         y.append(States[i, :,:])
                 # y1 = np.vstack(np.array(y1))
-                # y2 = np.vstack(np.array(y2)) 
+                # y2 = np.vstack(np.array(y2))
                 # y = np.vstack(np.array(y))
                 # var0 = np.var(y)
                 # var1 = (np.var(y1) * np.size(y1)+np.var(y2)*np.size(y2))/(T*np.sum(g_index == k))
@@ -358,26 +358,26 @@ def changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
                     # print('** maxcusum',maxcusum)
                     maxcusum = cusum_tmp
                     maxcusum_list[k] = maxcusum
-                    tauk[k] = u           
+                    tauk[k] = u
         if maxcusum < (C1*(kappa * np.sum(g_index == k))**(-1*C2) * np.log10(N * T))**2:#chi2.ppf(1-alpha, df):
             tauk[k] = int(T - kappa + epsilon*T) + 1
-        changepoints[(g_index == k), :] = tauk[k]   
+        changepoints[(g_index == k), :] = tauk[k]
     changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
 
-def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=None, 
-                              cusum_forward=None, cusum_backward=None, C1=None, 
+def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=None,
+                              cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None,C3=2, alpha = 0.05, df = 4, nthread=0):
     '''
     detect change in conditional distribution, no variance estimation
     '''
     p = States.shape[2]
-    K = len(set(g_index.tolist()))    
+    K = len(set(g_index.tolist()))
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
     maxcusum_list = np.zeros(K)
     g_index = np.array(g_index).astype(int)
-    def run_one(u):       
+    def run_one(u):
        X1 = []
        y1 = []
        X2 = []
@@ -386,43 +386,40 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
        y = []
        for i in range(int(N)):
             if g_index[i] == k:
-               mat = []
                poly = PolynomialFeatures(2, interaction_only=True)
                mat_tmp = poly.fit_transform(np.vstack([Actions[i, :u], States[i, :u, range(p)]]).T)
                mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                X1.append(mat)
                y1.append(States[i, 1:u+1,:])
-               
-               mat = []
+
                poly = PolynomialFeatures(2, interaction_only=True)
                mat_tmp = poly.fit_transform(np.vstack([Actions[i, u:], States[i, u:-1, range(p)]]).T)
                mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                X2.append(mat)
                y2.append(States[i, u+1:,:])
 
-               mat = []
                poly = PolynomialFeatures(2, interaction_only=True)
                mat_tmp = poly.fit_transform(np.vstack([Actions[i, :], States[i, :-1, range(p)]]).T)
                mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                X.append(mat)
                y.append(States[i, 1:,:])
-       X1 = np.vstack(np.array(X1)) 
-       X1 = np.kron(np.eye(p,dtype=int),X1) 
+       X1 = np.vstack(np.array(X1))
+       X1 = np.kron(np.eye(p,dtype=int),X1)
        y1 = np.vstack(np.array(y1)).T.reshape(-1, 1)
-       X2 = np.vstack(np.array(X2)) 
-       X2 = np.kron(np.eye(p,dtype=int),X2) 
+       X2 = np.vstack(np.array(X2))
+       X2 = np.kron(np.eye(p,dtype=int),X2)
        y2 = np.vstack(np.array(y2)).T.reshape(-1, 1)
        X = np.vstack(np.array(X))
-       X = np.kron(np.eye(p,dtype=int),X) 
+       X = np.kron(np.eye(p,dtype=int),X)
        y = np.vstack(np.array(y)).T.reshape(-1, 1)
        reg0 = LinearRegression(fit_intercept=False)
        res0 = reg0.fit(X, y)
        reg1 = LinearRegression(fit_intercept=False)
        res1=reg1.fit(X1, y1)
        reg2 = LinearRegression(fit_intercept=False)
-       res2=reg2.fit(X2, y2)   
+       res2=reg2.fit(X2, y2)
        # var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/N
-       # var1 = (np.log(np.linalg.norm(y1 - res1.predict(X1), ord=2)**2) 
+       # var1 = (np.log(np.linalg.norm(y1 - res1.predict(X1), ord=2)**2)
        #      +np.log(np.linalg.norm(y2 - res2.predict(X2),ord=2)**2))/N
        mean0 = res0.predict(X)
        mean1 = res1.predict(X1)
@@ -437,6 +434,7 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
        # logL1 = np.sum(np.log(L1))
        cusum_tmp = H0-H1
        return cusum_tmp
+
     for k in range(K):
         # print("k",k)
         maxcusum = 0
@@ -447,7 +445,7 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
             maxcusum= np.max(res)
         else: # do not parallel
             # print("no parallel")
-            print(g_index)
+            # print(g_index)
             for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1):
                 # print("u",u, "K",K)
                 cusum_tmp = run_one(u)
@@ -462,7 +460,7 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
                     # print('** maxcusum',maxcusum)
                     maxcusum = cusum_tmp
                     maxcusum_list[k] = maxcusum
-                    tauk[k] = u     
+                    tauk[k] = u
                     # plt.plot(cusum_list)
         # print('np.sum(g_index==k)',g_index==k,np.sum(g_index==k))
         # print(g_index)
@@ -470,27 +468,27 @@ def changedistribution_detect2(g_index, States, N, T,  kappa, epsilon, Actions=N
         # print('chi2.ppf(',1-alpha,', df) * np.log10(T * np.sum(g_index==k))**2')
         # print('df',df,'np.sum(g_index==k)')
         # print('np.sum(g_index==k)',np.sum(g_index==k))
-              
+
         # print('np.log10(T * np.sum(g_index==k))',np.log10(T * np.sum(g_index==k)))
         # print('chi2.ppf(1-alpha, df)',chi2.ppf(1-alpha, df))
         # print(chi2.ppf(1-alpha, df) * np.log10(T * np.sum(g_index==k))**2)
         if maxcusum < chi2.ppf(1-alpha, df) * np.log10(kappa * np.sum(g_index==k))**C3:
             tauk[k] = 0
-        changepoints[(g_index == k), :] = tauk[k]   
+        changepoints[(g_index == k), :] = tauk[k]
     changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
-    
+
 def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
     N = States_ori.shape[0]
     T = States_ori.shape[1] - 1
     p = States_ori.shape[2]
     def run_one(b):
         # np.random.seed(None)
-        States_current = States_ori[:, :-1, :]
-        States_next = States_ori[:, 1:, :]
-        seq = np.random.permutation(range(T)).tolist()
-        States_current = States_current[:,seq,:]
-        States_next = States_next[:, seq, :]
+        # States_current = States_ori[:, :-1, :]
+        # States_next = States_ori[:, 1:, :]
+        seq = np.random.permutation(range(T))
+        States_current = States_ori[:,seq,:]
+        States_next = States_ori[:, seq+1, :]
         Actions = Actions_ori[:,seq]
         X1 = []
         y1 = []
@@ -498,37 +496,35 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
         y2 = []
         X = []
         y = []
+        N_k = sum(g_index == k)
         for i in range(int(N)):
             if g_index[i] == k:
-                mat = []
                 poly = PolynomialFeatures(2, interaction_only=True)
                 mat_tmp = poly.fit_transform(np.vstack([Actions[i, :u], States_current[i, :u, range(p)]]).T)
                 mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                 X1.append(mat)
                 y1.append(States_next[i, :u,:])
-                
-                mat = []
+
                 poly = PolynomialFeatures(2, interaction_only=True)
                 mat_tmp = poly.fit_transform(np.vstack([Actions[i, u:], States_current[i, u:, range(p)]]).T)
                 mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                 X2.append(mat)
                 y2.append(States_next[i, u:,:])
 
-                mat = []
                 poly = PolynomialFeatures(2, interaction_only=True)
                 mat_tmp = poly.fit_transform(np.vstack([Actions[i, :], States_current[i, :, range(p)]]).T)
                 mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                 X.append(mat)
                 y.append(States_next[i, :,:])
 
-        X1 = np.vstack(np.array(X1)) 
-        X1 = np.kron(np.eye(p,dtype=int),X1) 
+        X1 = np.vstack(np.array(X1))
+        X1 = np.kron(np.eye(p,dtype=int),X1)
         y1 = np.vstack(np.array(y1)).T.reshape(-1, 1)
-        X2 = np.vstack(np.array(X2)) 
-        X2 = np.kron(np.eye(p,dtype=int),X2) 
+        X2 = np.vstack(np.array(X2))
+        X2 = np.kron(np.eye(p,dtype=int),X2)
         y2 = np.vstack(np.array(y2)).T.reshape(-1, 1)
         X = np.vstack(np.array(X))
-        X = np.kron(np.eye(p,dtype=int),X) 
+        X = np.kron(np.eye(p,dtype=int),X)
         y = np.vstack(np.array(y)).T.reshape(-1, 1)
         reg0 = LinearRegression(fit_intercept=False)
         res0 = reg0.fit(X, y)
@@ -536,10 +532,10 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
         res1=reg1.fit(X1, y1)
         reg2 = LinearRegression(fit_intercept=False)
         res2=reg2.fit(X2, y2)
-    
-        var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N*p)
-        var1 = (np.log(np.linalg.norm(y1 - res1.predict(X1), ord=2)**2) 
-             +np.log(np.linalg.norm(y2 - res2.predict(X2),ord=2)**2))/(N*p)
+
+        var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N_k*p*T)
+        var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2)**2 / u
+                + np.linalg.norm(y2 - res2.predict(X2),ord=2)**2 / (T-u))/(N_k*p)
         mean0 = res0.predict(X)
         mean1 = res1.predict(X1)
         mean2 = res2.predict(X2)
@@ -552,6 +548,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
         logL1 = np.sum(np.log(L1))
         cusum_tmp = -2*(logL0 - logL1)
         return cusum_tmp
+
     if nthread_B !=0:
         sample_stat = Parallel(n_jobs=nthread_B)(delayed(run_one)(b) for b in range(B))
     else:
@@ -560,14 +557,15 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
             sample_stat[b] = run_one(b)
     return sample_stat
 
-def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=None, 
-                              cusum_forward=None, cusum_backward=None, C1=None, 
+def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
+                              cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None,C3=2, alpha = 0.05, df = 5,
-                              nthread=0, threshold_type="Chi2", B = 10, nthread_B= None):
+                              nthread=0, threshold_type="Chi2", B = 100, nthread_B= None):
     '''
     detect change in conditional distribution
     '''
-    K = len(set(g_index))    
+    K = len(set(g_index))
+    # print(g_index)
     p = States.shape[2]
     tauk = np.zeros(K)
     changepoints = np.zeros(N).reshape(-1,1)
@@ -579,15 +577,17 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
        y2 = []
        X = []
        y = []
+       N_k = sum(g_index == k)
        for i in range(int(N)):
-           # if g_index[i] == k:
+           if g_index[i] == k:
+               # print("k =",k, "i =", i)
                mat = []
                poly = PolynomialFeatures(2, interaction_only=True)
                mat_tmp = poly.fit_transform(np.vstack([Actions[i, :u], States[i, :u, range(p)]]).T)
                mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                X1.append(mat)
                y1.append(States[i, 1:u+1,:])
-               
+
                mat = []
                poly = PolynomialFeatures(2, interaction_only=True)
                mat_tmp = poly.fit_transform(np.vstack([Actions[i, u:], States[i, u:-1, range(p)]]).T)
@@ -601,9 +601,9 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
                mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                X.append(mat)
                y.append(States[i, 1:,:])
-               
+
                # mat_tmp = np.hstack([np.ones([u,1]), States[i, :u, :],
-               #                     Actions[i, :u].reshape([u,1]), 
+               #                     Actions[i, :u].reshape([u,1]),
                #                     States[i, :u, :] * (Actions[i, :u].reshape([u,1]))]) # amend this if Sit is multivairate
                # X1.append(mat_tmp)
                # y1.append(States[i, 1:u+1,:])
@@ -612,18 +612,18 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
                # X2.append(mat_tmp)
                # y2.append(States[i, u+1:,:])
                # mat_tmp = np.hstack([np.ones([T-1,1]), States[i, :-1, :],
-               #                     Actions[i, :].reshape([T-1,1]), 
+               #                     Actions[i, :].reshape([T-1,1]),
                #                     States[i, :-1, :] * (Actions[i, :].reshape([T-1,1]))]) # amend this if Sit is multivairate
                # X.append(mat_tmp)
                # y.append(States[i, 1:,:])
-       X1 = np.vstack(np.array(X1)) 
-       X1 = np.kron(np.eye(p,dtype=int),X1) 
+       X1 = np.vstack(np.array(X1))
+       X1 = np.kron(np.eye(p,dtype=int),X1)
        y1 = np.vstack(np.array(y1)).T.reshape(-1, 1)
-       X2 = np.vstack(np.array(X2)) 
-       X2 = np.kron(np.eye(p,dtype=int),X2) 
+       X2 = np.vstack(np.array(X2))
+       X2 = np.kron(np.eye(p,dtype=int),X2)
        y2 = np.vstack(np.array(y2)).T.reshape(-1, 1)
        X = np.vstack(np.array(X))
-       X = np.kron(np.eye(p,dtype=int),X) 
+       X = np.kron(np.eye(p,dtype=int),X)
        y = np.vstack(np.array(y)).T.reshape(-1, 1)
        reg0 = LinearRegression(fit_intercept=False)
        res0 = reg0.fit(X, y)
@@ -631,10 +631,10 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
        res1=reg1.fit(X1, y1)
        reg2 = LinearRegression(fit_intercept=False)
        res2=reg2.fit(X2, y2)
-       
-       var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N*p)
-       var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2)**2
-            +np.linalg.norm(y2 - res2.predict(X2),ord=2)**2)/(N*p)
+
+       var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N_k*p*(T-1)) #
+       var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2)**2 / u
+             + np.linalg.norm(y2 - res2.predict(X2),ord=2)**2 / (T-u-1))/(N_k * p) #
        # var0 = np.eye(p) * var0
        # var1 = np.eye(p) * var1
        mean0 = res0.predict(X)
@@ -653,7 +653,7 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
        # print(res1.coef_)
        # print(res2.coef_)
        return cusum_tmp
-       
+
     for k in range(K):
         maxcusum = 0
         cusum_list = []
@@ -675,24 +675,24 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
                     # print('** maxcusum',maxcusum)
                     maxcusum = cusum_tmp
                     maxcusum_list[k] = maxcusum
-                    tauk[k] = u           
+                    tauk[k] = u
         if threshold_type == "Chi2":
             threshold = chi2.ppf(1-alpha, df)
         elif threshold_type == "permutate":
             if nthread_B is None:
-                nthread_B = B
+                nthread_B = nthread
             sample_stat = permutation_test(States, Actions, g_index, k, u, B, nthread_B)
             threshold = np.percentile(sample_stat, (1- alpha)*100)
         if maxcusum < threshold:
             tauk[k] = 0
-        changepoints[(g_index == k), :] = tauk[k]   
+        changepoints[(g_index == k), :] = tauk[k]
     changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
 
 #%% loops
-def clusteringNchangepoints(example, clustering, changepoint_detect, States, 
-                            Actions, N, T, p, epsilon, kappa, K, cusum_forward, 
-                            cusum_backward, C1=1, C2=1/2,C3=2, max_iter=30, 
+def clusteringNchangepoints(example, clustering, changepoint_detect, States,
+                            Actions, N, T, p, epsilon, kappa, K, cusum_forward,
+                            cusum_backward, C1=1, C2=1/2,C3=2, max_iter=30,
                             init_cluster_range=None, nthread=0, C=1,
                             g_index_init = None,clustering_warm_start=1,
                             loss_path =0, threshold_type="Chi2", B = 10, nthread_B= None):
@@ -700,7 +700,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
         if init_cluster_range is None:
             init_cluster_range = int(T/4) - 1
         changepoints_0 =  np.tile(init_cluster_range, N)
-        g_index_0, loss = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K, 
+        g_index_0, loss = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K,
                                changepoints=changepoints_0)
     else:
         g_index_0 = g_index_init
@@ -716,7 +716,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
         # print("======= m", m, "=========")
         out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N,
                                T=T, kappa=kappa,
-                               epsilon=epsilon, cusum_forward=cusum_forward, 
+                               epsilon=epsilon, cusum_forward=cusum_forward,
                                cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
         changepoints = np.array(out[0])
         if loss_path:
@@ -740,7 +740,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index_0 = g_index.copy()
         iter_num = m
     out=changepoint_detect(g_index = g_index,States=States, Actions=Actions,example=example, N=N, T=T, kappa=kappa,
-                           epsilon=epsilon, cusum_forward=cusum_forward, 
+                           epsilon=epsilon, cusum_forward=cusum_forward,
                            cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
     changepoints = np.array(out[0])
     # print('cp',changepoints)
@@ -763,7 +763,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
         return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, ic)
 
 def changepointsNclustering(example, clustering, changepoint_detect, States,Actions,
-                            N, T, p, epsilon, kappa, K, cusum_forward, 
+                            N, T, p, epsilon, kappa, K, cusum_forward,
                             cusum_backward, C1=1, C2=1/2, C3=2,
                             max_iter=30, max_iter_gmr = 50, nthread=0, C=1,
                             changepoints_init=None,clustering_warm_start=1,
@@ -774,7 +774,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
         loss_list = np.zeros(max_iter+1)
     if changepoints_init is None:
         g_index = np.arange(0, N)
-        out = changepoint_detect(g_index = g_index,States=States, Actions=Actions, example=example, N=N, T=T, kappa=kappa, epsilon=epsilon,
+        out = changepoint_detect(g_index = g_index,States=States, N=N, T=T, kappa=kappa, epsilon=epsilon,example=example, Actions=Actions,
                                  cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                  C1=C1, C2=C2, nthread=nthread)
         changepoints_0 = out[0]
@@ -804,7 +804,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
             loss_list[m] = goodnessofClustering(States, N, T, K, changepoints, Actions, g_index)
         if m == 0:
             g_index_0 = -1*np.ones(N)
-        if ((np.prod(changepoints == changepoints_0) and adjusted_rand_score(g_index_0.flatten(), g_index.flatten()) == 1) 
+        if ((np.prod(changepoints == changepoints_0) and adjusted_rand_score(g_index_0.flatten(), g_index.flatten()) == 1)
             or m == max_iter-1):
             if m == max_iter-1 and (np.sum(changepoints != changepoints_0) or adjusted_rand_score(g_index_0.flatten(), g_index.flatten())<1): # not converge
                 # print("K", str(K),": Not converge")
@@ -824,7 +824,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     changepoint_list = changepoint_list[:, :(iter_num+1)]
     g_index_list = g_index_list[:, :iter_num]
     if loss_path:
-        loss_list = loss_list[:, :iter_num]
+        loss_list = loss_list[:iter_num]
     # print(changepoints_0)
     try:
         result = namedtuple("result", ["iter_num", "g_index", "changepoints",
@@ -834,13 +834,13 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
         result = namedtuple("result", ["iter_num", "g_index", "changepoints",
                                        "changepoint_eachiter","g_index_eachiter", "loss", "IC"])
         return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, ic)
-       
+
 #%% fit
-def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2, 
-        C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
+def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2,
+        C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
         max_iter_gmr = 50, seed = 1, nthread=0, C=10,
         changepoints_init=None,g_index_init = None,clustering_warm_start=1,
-        loss_path =0,threshold_type="Chi2", B = 10, nthread_B= None):
+        loss_path =0, threshold_type="Chi2", B = 10, nthread_B= None):
     '''
     :param example: "mean", "conditional dis"
     :param inti: initial estimator, "changepoints", detect changepoints for each trajectrory separately, "clusters", kemans
@@ -854,32 +854,32 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
     if kappa is None:
         kappa = T
     if df is None:
-        df = (2+2*p)*p 
- 
+        df = (2+2*p)*p
+
     np.random.seed(seed)
-    def changepoint_detect(g_index, States, N, T,  kappa, epsilon, example, Actions=Actions, 
-                              cusum_forward=None, cusum_backward=None, C1=C1, 
+    def changepoint_detect(g_index, States, N, T,  kappa, epsilon, example=example, Actions=Actions,
+                              cusum_forward=None, cusum_backward=None, C1=C1,
                               C2=C2, C3=C3,alpha = alpha, df = df,nthread=nthread,
                               threshold_type="Chi2", B = 10, nthread_B= None):
         if example == "mean":
             # print('cluster mean')
-            return changemean_detect(g_index, States, N, T,  kappa, epsilon, Actions=None, 
-                                 cusum_forward=cusum_forward, 
+            return changemean_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
+                                 cusum_forward=cusum_forward,
                                  cusum_backward=cusum_backward, C1=C1 , C2=C2, C3=C3,
                                  alpha=None, df=None,nthread=nthread)
         elif example =="marginal":
             # print("marginal")
-            return changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=Actions, 
+            return changemarginal_detect(g_index, States, N, T,  kappa, epsilon, Actions=Actions,
                                          cusum_forward=None, cusum_backward=None,
                                          C1=C1, C2=C2,C3=C3, alpha=alpha, df=df,nthread=nthread)
         elif example == "cdist":
             # print(1)
-            return changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=Actions, 
+            return changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=Actions,
                                          cusum_forward=None, cusum_backward=None,
                                          C1=None, C2=None,C3= C3, alpha=alpha,
                                          df=df,nthread=nthread,
-                                         threshold_type="Chi2", B = 10, nthread_B= None)
- 
+                                         threshold_type=threshold_type, B = B, nthread_B = nthread_B)
+
     def clustering(States, N, T, K, changepoints,example, Actions=None, g_index=None, max_iter_gmr = 50):
         if example == "mean" or example == "marginal":
             # print('cluster mean')
@@ -890,7 +890,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
             # print('cluster dis')
             # print("N",N)
             return gmr(States, N, T, K, changepoints, Actions, g_index, max_iter_gmr)
-  
+
     if example == "mean":
         cusum_forward = np.cumsum(States, axis = 1)/(np.tile((range(1,T+1)), [N, 1]).reshape([N, T, p]))
         cusum_backward = np.flip(np.cumsum(np.flip(States, axis=1),axis = 1)/(np.tile((range(1,T+1)), [N, 1]).reshape([N, T, p])), axis = 1)
@@ -898,33 +898,33 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
         cusum_forward = None
         cusum_backward = None
         #%%
-    # fit                
+    # fit
     if init == "changepoints":
-        result = changepointsNclustering(example, clustering, changepoint_detect, 
-                                         States, Actions, N, T, p,epsilon, kappa, K, 
+        result = changepointsNclustering(example, clustering, changepoint_detect,
+                                         States, Actions, N, T, p,epsilon, kappa, K,
                                          cusum_forward,cusum_backward, C1, C2, C3,
-                                         max_iter, max_iter_gmr, nthread, C, 
+                                         max_iter, max_iter_gmr, nthread, C,
                                          changepoints_init, clustering_warm_start,
                                          threshold_type, B, nthread_B)
 
     else:
         result = clusteringNchangepoints(example, clustering, changepoint_detect,
-                                         States, Actions, N, T, p, epsilon, kappa, 
+                                         States, Actions, N, T, p, epsilon, kappa,
                                          K, cusum_forward, cusum_backward, C1, C2, C3,
                                          max_iter, init_cluster_range, nthread, C,
                                          g_index_init,clustering_warm_start,
-                                         threshold_type, B, nthread_B) 
-        
+                                         threshold_type, B, nthread_B)
+
     return result
-    
+
 def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1,
-        C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None, 
+        C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
         max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,
         g_index_init_list = None,clustering_warm_start=1, loss_path =0,
         threshold_type="Chi2", B = 10, nthread_B= None):
     '''
     Tuning the best K for clustering initialization from a list
-    
+
     #param: K_list: list object
     '''
     IC_max = 0
@@ -935,12 +935,12 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     #%%
     for K in K_list:
         # print("K",K)
-     
-        out = fit(States, Actions, example, init, kappa, epsilon, K, 
-                C1, C2, C3, alpha, df, max_iter, init_cluster_range, 
+
+        out = fit(States, Actions, example, init, kappa, epsilon, K,
+                C1, C2, C3, alpha, df, max_iter, init_cluster_range,
                 max_iter_gmr, seed, nthread, C,changepoints_init, g_index_init_list[K_list.index(K)],
                 clustering_warm_start, loss_path,threshold_type, B, nthread_B)
-      
+
         res.append(out)
         IC_model.append(out.IC)
         loss_model.append(out.loss)
@@ -951,7 +951,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
             IC_max = out.IC
             K_max = K
             #%%
-    tunningres = namedtuple("tunningres", ["K", "IC", "best_model", "models", 
+    tunningres = namedtuple("tunningres", ["K", "IC", "best_model", "models",
                                            "IC_model", "loss_model"])
-    return tunningres(K_max, IC_max, res[K_list.index(K_max)], res, IC_model, 
+    return tunningres(K_max, IC_max, res[K_list.index(K_max)], res, IC_model,
                       loss_model)
