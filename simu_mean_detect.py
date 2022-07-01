@@ -752,7 +752,8 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
     g_index_list = g_index_list[:, :(m+1)]
     # print('m',m)
     if loss_path:
-        loss_list = loss_list[:, :iter_num]
+        print('loss_path',loss_path,loss_list)
+        loss_list = loss_list[:iter_num]
     try:
         result = namedtuple("result", ["iter_num", "g_index", "changepoints",
                                        "changepoint_eachiter","g_index_eachiter", "loss", "loss_list","IC"])
@@ -905,6 +906,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
                                          cusum_forward,cusum_backward, C1, C2, C3,
                                          max_iter, max_iter_gmr, nthread, C,
                                          changepoints_init, clustering_warm_start,
+                                         loss_path,
                                          threshold_type, B, nthread_B)
 
     else:
@@ -913,6 +915,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
                                          K, cusum_forward, cusum_backward, C1, C2, C3,
                                          max_iter, init_cluster_range, nthread, C,
                                          g_index_init,clustering_warm_start,
+                                         loss_path,
                                          threshold_type, B, nthread_B)
 
     return result
