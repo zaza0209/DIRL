@@ -101,7 +101,7 @@ cov0 = 0.5
 # mean vector of random errors zt
 mean = 0
 # diagonal covariance of random errors zt
-cov = 0
+cov = 0.25
 
 # width of smooth transition function
 w = 0.01
@@ -132,10 +132,10 @@ elif trans_setting == 'smooth' and reward_setting == 'homo':
     States, Rewards, Actions = sim_dat.simulate(mean0, cov0, mytransition_function, myreward_function, seed)
 
 # normalize state variables
-# def transform(x):
-#     return (x - np.mean(x)) / np.std(x)
-# for i in range(1):
-#     States[:,:,i] = transform(States[:,:,i])
+def transform(x):
+    return (x - np.mean(x)) / np.std(x)
+for i in range(1):
+    States[:,:,i] = transform(States[:,:,i])
 plt.plot(States[0,:,:])
 States[0,:,:]
 

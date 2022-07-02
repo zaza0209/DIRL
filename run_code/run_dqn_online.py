@@ -18,11 +18,11 @@ for signal_factor in signal_factor_list:
 import platform, sys, os, re, pickle
 from joblib import Parallel, delayed
 import multiprocessing
-num_threads=multiprocessing.cpu_count()
+num_threads=multiprocessing.cpu_count()-1
 os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 signal_factor_list = [0.5]
-test_size_factor = 1
+test_size_factor = 10
 train_episodes = 2
 def run_one(cluster_id, signal_factor):    
     !python simu/dqn_online.py $cluster_id $signal_factor $test_size_factor $train_episodes

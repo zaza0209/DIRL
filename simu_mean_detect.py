@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics.cluster import adjusted_rand_score
+from tslearn.clustering import TimeSeriesKMeans
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import namedtuple
@@ -560,7 +561,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
 def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=None,
                               cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None,C3=2, alpha = 0.05, df = 5,
-                              nthread=0, threshold_type="Chi2", B = 100, nthread_B= None):
+                              nthread=0, threshold_type="permutate", B = 100, nthread_B= None):
     '''
     detect change in conditional distribution
     '''
@@ -695,13 +696,21 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
                             cusum_backward, C1=1, C2=1/2,C3=2, max_iter=30,
                             init_cluster_range=None, nthread=0, C=1,
                             g_index_init = None,clustering_warm_start=1,
-                            loss_path =0, threshold_type="Chi2", B = 10, nthread_B= None):
+                            loss_path =0, threshold_type="permutate", B = 10, 
+                            nthread_B= None, init_cluster_method = 'gmr',distance_metric="correlation", linkage = "average"):
     if g_index_init is None:
         if init_cluster_range is None:
             init_cluster_range = int(T/4) - 1
         changepoints_0 =  np.tile(init_cluster_range, N)
-        g_index_0, loss = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K,
-                               changepoints=changepoints_0)
+        if init_cluster_method == "gmr":
+            g_index_0, loss = clustering(States=States,Actions=Actions,example=example, N=N, T=T, K=K,
+                                   changepoints=changepoints_0)
+        elif init_cluster_method == 'hierarchy':
+            g_index_0 = ut.my_hierachy(States[:, init_cluster_range:, :], K,distance_metric, linkage)
+        elif init_cluster_method == 'kmeans':
+            km = TimeSeriesKMeans(n_clusters=K, metric=distance_metric,
+                       random_state=0).fit(States[:, init_cluster_range:, :])
+            g_index_0 = km.labels_
     else:
         g_index_0 = g_index_init
     changepoint_list = np.zeros([N, max_iter+1])
@@ -768,7 +777,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
                             cusum_backward, C1=1, C2=1/2, C3=2,
                             max_iter=30, max_iter_gmr = 50, nthread=0, C=1,
                             changepoints_init=None,clustering_warm_start=1,
-                            loss_path = 0,threshold_type="Chi2", B = 10, nthread_B= None):
+                            loss_path = 0,threshold_type="permutate", B = 10, nthread_B= None):
     changepoint_list = np.zeros([N, max_iter+1])
     g_index_list = np.zeros([N, max_iter+1])
     if loss_path:
@@ -839,9 +848,9 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
 #%% fit
 def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1, K=2,
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=0, C=10,
+        max_iter_gmr = 50, seed = 1, nthread=0, C=1,
         changepoints_init=None,g_index_init = None,clustering_warm_start=1,
-        loss_path =0, threshold_type="Chi2", B = 10, nthread_B= None):
+        loss_path =0, threshold_type="Chi2", B = 10, nthread_B= None,init_cluster_method = 'kmeans',distance_metric="correlation", linkage = "average"):
     '''
     :param example: "mean", "conditional dis"
     :param inti: initial estimator, "changepoints", detect changepoints for each trajectrory separately, "clusters", kemans
@@ -916,19 +925,20 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa = None, 
                                          max_iter, init_cluster_range, nthread, C,
                                          g_index_init,clustering_warm_start,
                                          loss_path,
-                                         threshold_type, B, nthread_B)
+                                         threshold_type, B, nthread_B,init_cluster_method,distance_metric, linkage)
 
     return result
 
 def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa = None, epsilon=0.1,
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=0, C=10,changepoints_init=None,
+        max_iter_gmr = 50, seed = 1, nthread=0, C=1,changepoints_init=None,
         g_index_init_list = None,clustering_warm_start=1, loss_path =0,
-        threshold_type="Chi2", B = 10, nthread_B= None):
+        threshold_type="Chi2", B = 10, nthread_B= None,init_cluster_method = 'kmeans',distance_metric="correlation", linkage = "average"):
     '''
     Tuning the best K for clustering initialization from a list
 
     #param: K_list: list object
+    #param: C: constant for information critirion
     '''
     IC_max = 0
     K_max = None
@@ -942,7 +952,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
         out = fit(States, Actions, example, init, kappa, epsilon, K,
                 C1, C2, C3, alpha, df, max_iter, init_cluster_range,
                 max_iter_gmr, seed, nthread, C,changepoints_init, g_index_init_list[K_list.index(K)],
-                clustering_warm_start, loss_path,threshold_type, B, nthread_B)
+                clustering_warm_start, loss_path,threshold_type, B, nthread_B,init_cluster_method,distance_metric, linkage)
 
         res.append(out)
         IC_model.append(out.IC)

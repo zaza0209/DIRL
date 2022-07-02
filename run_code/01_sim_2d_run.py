@@ -67,6 +67,7 @@ C2=0.5
 np.random.seed(seed)
 # %% simulate data
 # terminal timestamp
+N=20
 T = 100
 kappa = T
 epsilon=0.05

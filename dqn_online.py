@@ -29,8 +29,8 @@ signal_factor = float(sys.argv[2])
 print('signal_factor ',signal_factor )
 test_size_factor = int(sys.argv[3])
 train_episodes = int(sys.argv[4])
-T1_interval = 100
-N=10
+T1_interval = 200
+N= 200
 # terminal timestamp
 T = 100
 # dimension of X0
@@ -44,7 +44,7 @@ mean = 0
 # diagonal covariance of random errors zt
 cov = 0.25
 gamma = 0.95
-mag_factor=3
+
 # oracle change points and cluster membership
 # g_index_true = np.append(np.append(np.zeros(int(N/2)), np.ones(int(N/2))))
 # changepoints_true = np.append(np.append(89*np.ones(int(N/3)), 79*np.ones(int(N/3))), 69*np.ones(int(N/3)))
@@ -53,7 +53,7 @@ nrep = N*test_size_factor
 MIN_REPLAY_SIZE = 1000
 trans_setting='pwconst2'
 reward_setting = 'homo'
-print(1)
+# print(1)
 #%% simulate data and value evaluation
 def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=None, 
              T0=0, T1=T):
@@ -67,23 +67,23 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
     if trans_setting == 'homo' and reward_setting == 'pwconst2':
         def mytransition_function(t):
             return sim_dat.transition_homo(mean, cov)
-        def myreward_function(t):
-            return sim_dat.reward_pwconstant2(t)
+        # def myreward_function(t):
+        #     return sim_dat.reward_pwconstant2(t)
     elif trans_setting == 'homo' and reward_setting == 'smooth':
         def mytransition_function(t):
             return sim_dat.transition_homo(mean, cov)
-        def myreward_function(t):
-            return sim_dat.reward_smooth2(t, w)
+        # def myreward_function(t):
+        #     return sim_dat.reward_smooth2(t, w)
     elif trans_setting == 'pwconst2' and reward_setting == 'homo':
         def mytransition_function(t):
             return sim_dat.transition_pwconstant2(t, mean, cov, coef=None, signal=None, transition_matrix = transition_matrix)
-        def myreward_function(t):
-            return sim_dat.reward_homo()
+        # def myreward_function(t):
+        #     return sim_dat.reward_homo()
     elif trans_setting == 'smooth' and reward_setting == 'homo':
         def mytransition_function(t):
             return sim_dat.transition_smooth2(t, mean, cov, w)
-        def myreward_function(t):
-            return sim_dat.reward_homo()
+        # def myreward_function(t):
+        #     return sim_dat.reward_homo()
     # States, Rewards, Actions = sim_dat.simulate(mean0, cov0, mytransition_function, myreward_function,
     #                                              T0 = T0, T1 = T1, optimal_policy_model=optimal_policy_model)
     States = np.zeros([N, T1-T0 + 1, p])  # S[i][t]
@@ -113,14 +113,14 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
         # myState[0, 0, :] = St
         # print('myState', myState, 'shape', myState.shape)
         At = np.argmax(optimal_policy_model.predict(St.reshape([1, St.shape[0]]), verbose=0))
-        Actions[i, t] = At
+        # Actions[i, t] = At.copy()
 
         # generate immediate response R_i,t
         sim_dat.St = St
         sim_dat.At = At
-        Rewards[i, t] = myreward_function(t + T0)
-        St = mytransition_function(t + T0)
-        States[i, t + 1, :] = St
+        Rewards[i, t] = get_reward(St, At)
+        St = transition(St, At, transition_matrix)
+        States[i, t + 1, :] = St.copy()
 
     # other times
     for i in range(N):  # each episode i
@@ -130,25 +130,33 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
             # print('t',t)
             # generate policy
             At = np.argmax(optimal_policy_model.predict(St.reshape([1, St.shape[0]]), verbose=0))
-            Actions[i, t] = At
+            # Actions[i, t] = At.copy()
 
             # generate immediate response R_i,t
             sim_dat.St = St
             sim_dat.At = At
-            Rewards[i, t] = myreward_function(t+T0)
+            Rewards[i, t] = get_reward(St, At)
             # print(Rewards[i, t])
             
             # generate S_i,t+1
-            St = mytransition_function(t+T0)
-            States[i, t+1, :] = St
+            St = transition(St, At, transition_matrix)
+            States[i, t+1, :] = St.copy()
 
     # convert Actions to integers
-    Actions = Actions.astype(int)
+    # Actions = Actions.astype(int)
 
     return States, Rewards, Actions
-def calculate_value(transition_matrix, optimal_policy_model, transition_matrix, nrep, T1_interval):
-    _, Rewards_new, _, = simulate(transition_matrix, 
-                                  nrep, optimal_policy_model=optimal_policy_model, T0=0, T1 = int(T1_interval))
+def calculate_value(transition_matrix, optimal_policy_model, nrep, T1_interval, num_thread=3):
+    if num_thread > 1:
+        def run_one(seed):
+            _, Rewards_new,_ = simulate(transition_matrix, 
+                                          1, optimal_policy_model=optimal_policy_model, T0=0, T1 = int(T1_interval))
+            return Rewards_new
+        Rewards_new = Parallel(n_jobs=num_thread, prefer = 'threads')(delayed(run_one)(seed) for seed in range(nrep))
+        Rewards_new = np.vstack(Rewards_new)
+    else:
+        _, Rewards_new, _, = simulate(transition_matrix, 
+                                      nrep, optimal_policy_model=optimal_policy_model, T0=0, T1 = int(T1_interval))
     est_v = 0.0
     for t in range(T1_interval):
         est_v += Rewards_new[:,t] * gamma**t
@@ -241,9 +249,21 @@ def transition(St, At, transition_matrix):
     return transition_matrix[At] @ St_full + \
            multivariate_normal.rvs(err_mean, err_cov)
 
+sim_dat_tmp = sim.simulate_data(N, T, p, 0)
+if trans_setting == 'pwconst2' and reward_setting == 'homo':
+    def mytransition_function(t):
+        return sim_dat_tmp.transition_pwconstant2(t, mean, cov, coef=None, signal=None, transition_matrix = transition_matrix)
+    def myreward_function(t):
+        return sim_dat_tmp.reward_homo()
+# elif trans_setting == 'smooth' and reward_setting == 'homo':
+#     def mytransition_function(t):
+#         return sim_dat_tmp.transition_smooth2(t, mean, cov, w)
 
-def get_reward(St):
-    return St[0]
+def get_reward(St, At):
+    # return St[0]
+    sim_dat_tmp.St = St
+    sim_dat_tmp.At = At
+    return  myreward_function(sim_dat_tmp.Td2 + 1)
 
 def run(transition_matrix, tol = 1e-5):
     epsilon = 1  # Epsilon-greedy algorithm in initialized at 1 meaning every step is random at the start
@@ -278,10 +298,11 @@ def run(transition_matrix, tol = 1e-5):
         S1.append(observation[0].item())
         S2.append(observation[1].item())
         done = False
-        t=0
+        updated = 0
+        # t=0
         while not done:
-            print(t)
-            t+=1
+            # t+=1
+            # print(t)
             steps_to_update_target_model += 1
             # if True:
             #     env.render()
@@ -296,17 +317,24 @@ def run(transition_matrix, tol = 1e-5):
                 # model dims are (batch, env.observation_space.n)
                 encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-                predicted = model.predict(encoded_reshaped).flatten()
+                predicted = model.predict(encoded_reshaped, verbose=0).flatten()
                 action = np.argmax(predicted)
             new_observation = transition(observation, action, transition_matrix)
             S1.append(new_observation[0].item())
             S2.append(new_observation[1].item())
-            reward = get_reward(new_observation)
+            reward = get_reward(new_observation, action)
             # print('reward', reward)
             cum_rewards += reward
             num_rewards += 1
             mean_cr = cum_rewards/num_rewards
-            print('mean_cr',mean_cr)
+            # print('np.abs(mean_cr - mean_cr_old)',np.abs(mean_cr - mean_cr_old))
+            # if np.abs(mean_cr - mean_cr_old) < tol and updated:
+            #     converge=1
+            #     break
+            # else:
+            #     mean_cr_old = mean_cr
+            #     updated=1
+            # print('mean_cr',mean_cr)
             # done = steps_to_update_target_model >= 150
             replay_memory.append([observation, action, reward, new_observation, done])
 
@@ -316,12 +344,7 @@ def run(transition_matrix, tol = 1e-5):
 
             observation = new_observation
             total_training_rewards += reward
-            
-            if np.abs(mean_cr - mean_cr_old) < tol:
-                converge=1
-                break
-            else:
-                mean_cr_old = mean_cr
+        
                 
             if steps_to_update_target_model >= 99 and len(replay_memory) > MIN_REPLAY_SIZE :
                 print('Total training rewards: {} after n steps = {} with final reward = {}'.format(
@@ -332,6 +355,13 @@ def run(transition_matrix, tol = 1e-5):
                 target_old.set_weights(target_model.get_weights())
                 target_model.set_weights(model.get_weights())
                 steps_to_update_target_model = 0
+                print('np.abs(mean_cr - mean_cr_old)',np.abs(mean_cr - mean_cr_old))
+                if np.abs(mean_cr - mean_cr_old) < tol and updated:
+                    converge=1
+                    break
+                else:
+                    mean_cr_old = mean_cr
+                    updated=1
                 # err = 0.0
                 # print('len(model.layers)',len(model.layers))
                 # for i in range(len(model.layers)):
@@ -358,10 +388,12 @@ def run(transition_matrix, tol = 1e-5):
     return target_model,episode
 #%% save data
 print('signal_factor',signal_factor, ' signal_factor*-0.25', signal_factor*-0.25)
-coef1=[[signal_factor*0, signal_factor*0, signal_factor*-0.25],[signal_factor*0, signal_factor*0, signal_factor*0.25]]
+coef1=[[int(signal_factor)*0, int(signal_factor)*0, int(signal_factor)*-0.25],[int(signal_factor)*0, int(signal_factor)*0, int(signal_factor)*0.25]]
+coef1=[[ signal_factor *0,  signal_factor *0,  signal_factor *-0.25],[signal_factor*0, signal_factor*0, signal_factor*0.25]]
+
 print('coef',coef1)
 def setpath(cluster_id):
-    # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
     append_name = '_N' + str(N) + '_1d'
     if not os.path.exists('results/value_evaluation'):
         os.makedirs('results/value_evaluation', exist_ok=True)
@@ -405,18 +437,21 @@ if cluster_id == 0:
                                                                          [0,0.25]])
                                             
     target_model_1, episode_1 = run(transition_matrix)
+    print('finish training')
     # now generate a bunch of initial states and calculate the optimal value
-    # opt_values_1 = []
+    # opt_values = []
     # for i in range(nrep):
     #     observation = generate_initial_state()
     #     encoded_reshaped = observation.reshape([1, observation.shape[0]])
     #     predicted = target_model_1.predict(encoded_reshaped, verbose=0).flatten()
-    #     opt_values_1.append(max(predicted))
-    opt_values_1 = calculate_value(transition_matrix, target_model_1, transition_matrix, nrep, T1_interval)
+    #     opt_values.append(max(predicted))
+    opt_values_1 = calculate_value(transition_matrix, target_model_1, nrep, T1_interval)
     print("Optimal value:", np.mean(opt_values_1),'episode', episode_1) #signal0.5: 0.16361411
     file_name = 'clusterid'+str(cluster_id) + '.dat'
-    save_data(file_name, np.mean(opt_values_1), np.std(opt_values_1)/np.sqrt(nrep), int(episode_1 == train_episodes), target_model_1)
-
+    save_data(file_name, np.mean(opt_values_1), np.std(opt_values_1)/np.sqrt(nrep), int(episode_1 == train_episodes - 1), target_model_1)
+with open(file_name,'rb') as f:
+    t1 = pickle.load(f)
+    target_model_1.set_weights(t1['weights'][0])
 #%% cluster 1:
 if cluster_id == 1:
     print(cluster_id)
@@ -435,7 +470,7 @@ if cluster_id == 1:
     #     encoded_reshaped = observation.reshape([1, observation.shape[0]])
     #     predicted = target_model_2.predict(encoded_reshaped, verbose=0).flatten()
     #     opt_values_2.append(max(predicted))
-    opt_values_2 = calculate_value(transition_matrix, target_model_2, transition_matrix, nrep, T1_interval)
+    opt_values_2 = calculate_value(transition_matrix, target_model_2, nrep, T1_interval)
     print("Optimal value:", np.mean(opt_values_2), 'episode', episode_2) # signal0.5: 0.45594767
     file_name = 'clusterid'+str(cluster_id) + '.dat'
     save_data(file_name, np.mean(opt_values_2), np.std(opt_values_2)/np.sqrt(nrep), not int(episode_2 == train_episodes-1), target_model_2)

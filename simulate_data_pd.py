@@ -167,8 +167,10 @@ class simulate_data():
         '''
         # print('self.St[0]', self.St[0], '0.25*self.St[0]**2', 0.25*self.St[0]**2, '4*self.St[0]',4*self.St[0])
         # print('St', self.St, 'At',self.At)
-        return 0.25*np.sum(self.St)**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St)
-        # return 0.5 * self.St[0]
+        return 0.25*(self.St[0])**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St[0])
+        # return 0.25*(np.sum(self.St))**2 * (2.0 * self.At - 1.0) + 4*np.sum(self.St)
+    
+    # return 0.5 * self.St[0]
 
 
     def reward_pwconstant2(self, t):

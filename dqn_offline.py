@@ -1,6 +1,8 @@
 import platform, sys, os, re, pickle
 import tensorflow as tf
 import numpy as np
+from joblib import Parallel, delayed
+from datetime import datetime
 plat = platform.platform()
 # print(plat)
 if plat == 'Windows-10-10.0.14393-SP0': ##local
@@ -24,6 +26,8 @@ from scipy.stats import multivariate_normal
 # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
 # sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 import simu.simulate_data_pd as sim
+import simu.simu_mean_detect as mean_detect
+import simu.utilities as uti
 # %% 
 seed = int(sys.argv[1])
 signal_factor= float(sys.argv[2])
@@ -31,10 +35,11 @@ method = sys.argv[3]
 # An episode a full game
 train_episodes = int(sys.argv[4])
 test_size_factor = int(sys.argv[5])
+# init_method = sys.argv[6]
 tf.random.set_seed(seed)
 np.random.seed(seed)
 #parameters to simulate data
-N=36
+N=200
 # terminal timestamp
 T = 100
 # dimension of X0
@@ -50,7 +55,8 @@ cov = 0.25
 trans_setting = 'pwconst2'
 reward_setting = 'homo'
 
-gamma = 0.9
+T1_interval = 200
+gamma = 0.95
 # MIN_REPLAY_SIZE = 300
 coef1=[[signal_factor*0, signal_factor*0, signal_factor*-0.25],[signal_factor*0, signal_factor*0, signal_factor*0.25]]
 coef =[coef1,coef1[::-1]]# this is acceptable 0609
@@ -58,8 +64,8 @@ signal = [[signal_factor*0, signal_factor*0], [signal_factor*0, signal_factor*0]
 nrep = N*test_size_factor
 
 #%% environment setup
-def setpath(seed):
-    # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+def setpath(seed, method):
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
     append_name = '_N' + str(N) + '_1d'
     if not os.path.exists('results/value_evaluation'):
         os.makedirs('results/value_evaluation', exist_ok=True)
@@ -76,7 +82,7 @@ def setpath(seed):
 # setpath(seed)
 
 def save_data(file_name, estimated_value,std_value,converge,model=None, model2=None):
-    setpath(seed)
+    setpath(seed, method)
     # print('save data')
     if model is not None and model2 is None:
         with open(file_name, "wb")as f:
@@ -116,36 +122,36 @@ def generate_initial_state():
     # St[2] = np.random.normal(7, 1)  # mood score of week t
     return St
 
-def transition(St, At, transition_matrix):
-    '''
-    :param k: index of cluster k
-    :param t: time point t
-    :return:
-    '''
-    # St_full = np.insert(St, 0, 1, axis=0)
-    err_mean = np.zeros(2)
-    err_cov = np.diag([cov,cov])
-    return transition_matrix[At] @ St + \
-           multivariate_normal.rvs(err_mean, err_cov)
+# def transition(St, At, transition_matrix):
+#     '''
+#     :param k: index of cluster k
+#     :param t: time point t
+#     :return:
+#     '''
+#     # St_full = np.insert(St, 0, 1, axis=0)
+#     err_mean = np.zeros(2)
+#     err_cov = np.diag([cov,cov])
+#     return transition_matrix[At] @ St + \
+#            multivariate_normal.rvs(err_mean, err_cov)
 
-def get_reward(St):
-    return St[0]
+# def get_reward(St):
+#     return St[0]
 
-def policy(state, model):
-    return np.argmax(get_qs(model, state))
+# def policy(state, model):
+#     return np.argmax(get_qs(model, state))
 
-def reward(model, episodes=500, T=100):
-    rewards = 0
-    for i in range(episodes):
-        print(i)
-        state = generate_initial_state()
-        for t in range(T):
-            a = policy(state, model)
-            r = get_reward(state)
-            state = transition(state, a, transition_matrix)
-            rewards += r 
-    rewards = rewards / episodes
-    return rewards
+# def reward(model, episodes=500, T=100):
+#     rewards = 0
+#     for i in range(episodes):
+#         print(i)
+#         state = generate_initial_state()
+#         for t in range(T):
+#             a = policy(state, model)
+#             r = get_reward(state)
+#             state = transition(state, a, transition_matrix)
+#             rewards += r 
+#     rewards = rewards / episodes
+#     return rewards
 #%% agent
 def agent(state_shape, action_shape):
     """ The agent maps X-states to Y-actions
@@ -164,8 +170,8 @@ def agent(state_shape, action_shape):
                   metrics=['accuracy'])
     return model
 
-def get_qs(model, state):
-    return model.predict(state.reshape([1, state.shape[0]]), verbose=0)[0]
+# def get_qs(model, state):
+#     return model.predict(state.reshape([1, state.shape[0]]), verbose=0)[0]
 
 def train(discount_factor, replay_memory, model, target_model,MIN_REPLAY_SIZE=300):
     learning_rate = 0.7  # Learning rate
@@ -247,7 +253,7 @@ def run(States, Actions, Rewards, MIN_REPLAY_SIZE=300, tol = 1e-5):
                 
                 
                 if steps_to_update_target_model >= 99 and len(replay_memory) > MIN_REPLAY_SIZE :
-                    print('Copying main network weights to the target network weights')
+                    # print('Copying main network weights to the target network weights')
                     target_old.set_weights(target_model.get_weights())
                     target_model.set_weights(model.get_weights())
                     steps_to_update_target_model = 0
@@ -341,6 +347,7 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
     '''
     simulate data after change points
     '''
+    # np.random.seed(1)
     w = 0.01
     delta = 1 / 10
 
@@ -367,7 +374,7 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
             return sim_dat.reward_homo()
     # States, Rewards, Actions = sim_dat.simulate(mean0, cov0, mytransition_function, myreward_function,
     #                                              T0 = T0, T1 = T1, optimal_policy_model=optimal_policy_model)
-    States = np.zeros([N, T1-T0 + 1, p])  # S[i][t]
+    States = np.zeros([N, 2, p])  # S[i][t]
     Rewards = np.zeros([N, T1-T0])  # R[i,t]
     Actions = np.zeros([N, T1-T0])  # Actions[i,t]
 
@@ -386,32 +393,34 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
         if S0 is None:
             St = generate_initial_state()
             # print(self.St)
-            States[i, 0, :] = St
+            # States[i, 0, :] = St
         else:
-            St = States[i, 0, :]
+            St = S0
 
         # generate action
         # myState[0, 0, :] = St
         # print('myState', myState, 'shape', myState.shape)
+        # startTime = datetime.now()
         At = np.argmax(optimal_policy_model.predict(St.reshape([1, St.shape[0]]), verbose=0))
-        Actions[i, t] = At
+        # print(datetime.now() - startTime)
+        # Actions[i, t] = At.copy()
 
         # generate immediate response R_i,t
         sim_dat.St = St
         sim_dat.At = At
         Rewards[i, t] = myreward_function(t + T0)
         St = mytransition_function(t + T0)
-        States[i, t + 1, :] = St
+        States[i, t + 1, :] = St.copy()
 
     # other times
     for i in range(N):  # each episode i
-        # print(i)i=0
+        # print(i)
         St = States[i, 1, :]
         for t in range(1, T1-T0):  # each time point t
             # print('t',t)
             # generate policy
             At = np.argmax(optimal_policy_model.predict(St.reshape([1, St.shape[0]]), verbose=0))
-            Actions[i, t] = At
+            # Actions[i, t] = At.copy()
 
             # generate immediate response R_i,t
             sim_dat.St = St
@@ -421,29 +430,66 @@ def simulate(transition_matrix, N=25, optimal_policy_model = None, S0=None, A0=N
             
             # generate S_i,t+1
             St = mytransition_function(t+T0)
-            States[i, t+1, :] = St
+            # States[i, t+1, :] = St.copy()
 
     # convert Actions to integers
-    Actions = Actions.astype(int)
+    # Actions = Actions.astype(int)
 
     return States, Rewards, Actions
-def calculate_value(transition_matrix, optimal_policy_model, transition_matrix, nrep, T1_interval):
-    _, Rewards_new, _, = simulate(transition_matrix, 
-                                  nrep, optimal_policy_model=optimal_policy_model, T0=0, T1 = int(T1_interval))
+def calculate_value(transition_matrix, optimal_policy_model, nrep, T1_interval, T0 = 0, num_thread=4):
+    if num_thread > 1:
+        def run_one(seed):
+            _, Rewards_new, _, = simulate(transition_matrix, 
+                                          1, optimal_policy_model=optimal_policy_model, T0=T0, T1 = int(T0+T1_interval))
+            return Rewards_new
+        startTime = datetime.now()
+        Rewards_new = Parallel(n_jobs=num_thread, prefer = 'threads')(delayed(run_one)(seed) for seed in range(nrep))
+        Rewards_new = np.vstack(Rewards_new)
+        print(datetime.now() - startTime)
+    else:
+        _, Rewards_new, _, = simulate(transition_matrix, 
+                                      nrep, optimal_policy_model=optimal_policy_model, T0=T0, T1 = int(T0+T1_interval))
     est_v = 0.0
     for t in range(T1_interval):
         est_v += Rewards_new[:,t] * gamma**t
+    # est_v = np.mean(Rewards_new)
     return est_v
+def calculate_value_clusters(transition_matrix_list, optimal_policy_model, nrep, T1_interval,T0_list, num_thread=3):
+    K = len(transition_matrix_list)
+    est_v = []
+    for k in range(K):
+        est_v.extend(calculate_value(transition_matrix_list[k], optimal_policy_model, int(nrep/K), T1_interval, T0_list[k]))
+    return est_v
+#%% transition matrix
+transition_matrix_list = []
+transition_matrix = [None] * 2
+transition_matrix[0] = np.array([[0,0],
+                                 [0,0]]) + signal_factor * np.array([[0.25,0],
+                                                                     [0,-0.25]])
+transition_matrix[1] = np.array([[0,0],
+                                 [0,0]]) + signal_factor * np.array([[-0.25,0],
+                                                                      [0,0.25]])
+transition_matrix_list.append(transition_matrix)
+transition_matrix = [None] * 2
+transition_matrix[0] = np.array([[0,0],
+                                 [0,0]]) + signal_factor * np.array([[-0.25,0],
+                                                                     [0,0.25]])
+transition_matrix[1] = np.array([[0,0],
+                                 [0,0]]) + signal_factor * np.array([[0.25,0],
+                                                                     [0,-0.25]])
+transition_matrix_list.append(transition_matrix)      
+T0_list = [int(changepoints_true[g_index_true ==0][0].item()), int(changepoints_true[g_index_true==1][0].item())]                                                                                                                         
 #%% overall
 if method == "overall":
     target_model_overall, episode = run(States, Actions, Rewards)
-    opt_values_overall = []
-    for i in range(nrep):
-        observation = generate_initial_state()
-        encoded_reshaped = observation.reshape([1, observation.shape[0]])
-        predicted = target_model_overall.predict(encoded_reshaped, verbose=0).flatten()
-        opt_values_overall.append(max(predicted))
-    opt_values_overall = calculate_value(target_model_overall)
+    opt_values_overall = calculate_value_clusters(transition_matrix_list, target_model_overall, nrep, T1_interval, T0_list)
+    # opt_values_overall = []
+    # for i in range(nrep):
+    #     observation = generate_initial_state()
+    #     encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #     predicted = target_model_overall.predict(encoded_reshaped, verbose=0).flatten()
+    #     opt_values_overall.append(max(predicted))
+    # opt_values_overall = calculate_value(target_model_overall)
     print("overall value:", np.mean(opt_values_overall)) #signal0.5: 0.17776427
     file_name = method + '.dat'
     save_data(file_name, np.mean(opt_values_overall), np.std(opt_values_overall)/np.sqrt(nrep), int(episode == train_episodes), target_model_overall)
@@ -453,18 +499,25 @@ if method == "oracle_clusterings":
     target_model_cluster1, episode_cluster1 = run(States[:int(N/2), :, :], Actions[:int(N/2), :], Rewards[:int(N/2), :])
     print(' target_model_cluster1', target_model_cluster1)
     target_model_cluster2, episode_cluster2 = run(States[int(N/2):, :, :], Actions[int(N/2):, :], Rewards[int(N/2):, :])
+    # opt_values_cluster = []
+    # for i in range(nrep):
+    #     if i < nrep/2:
+    #         observation = generate_initial_state()
+    #         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #         predicted = target_model_cluster1.predict(encoded_reshaped, verbose=0).flatten()
+    #         opt_values_cluster.append(max(predicted))
+    #     else:
+    #         observation = generate_initial_state()
+    #         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #         predicted = target_model_cluster2.predict(encoded_reshaped, verbose=0).flatten()
+    #         opt_values_cluster.append(max(predicted))
     opt_values_cluster = []
-    for i in range(nrep):
-        if i < nrep/2:
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_cluster1.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_cluster.append(max(predicted))
+    for k in range(2):
+        if k == 0:
+            est_v = calculate_value(transition_matrix_list[k], target_model_cluster1, int(nrep/2), T1_interval)
         else:
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_cluster2.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_cluster.append(max(predicted))
+            est_v = calculate_value(transition_matrix_list[k], target_model_cluster2, int(nrep/2), T1_interval)
+        opt_values_cluster.extend(est_v)
     print("oracle cluster value:", np.mean(opt_values_cluster)) #signal0.5: 0.17776427
     file_name = method + '.dat'
     # print('file_name', file_name)
@@ -485,36 +538,51 @@ if method == "oracle_cp":
         Rewards_list.append(Rewards[i, int(changepoints_true[i]):])
     
     target_model_cp, episode_cp = run(States_list, Actions_list, Rewards_list)
-    opt_values_cp = []
-    for i in range(nrep):
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_cp.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_cp.append(max(predicted))
+    opt_values_cp = calculate_value_clusters(transition_matrix_list, target_model_overall, nrep, T1_interval)
+    # opt_values_cp = []
+    # for i in range(nrep):
+    #         observation = generate_initial_state()
+    #         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #         predicted = target_model_cp.predict(encoded_reshaped, verbose=0).flatten()
+    #         opt_values_cp.append(max(predicted))
     print("oracle cp value:", np.mean(opt_values_cp)) #signal0.5: 0.17776427
     file_name = method + '.dat'
     save_data(file_name,np.mean(opt_values_cp), np.std(opt_values_cp)/np.sqrt(nrep), int(episode_cp == train_episodes), target_model_cp)
 
 #%% oracle
 if method == "oracle":
+    # print('oracle')
+    startTime = datetime.now()
     target_model_oracle1, episode_oracle1 = run(States[:int(N/2), int(changepoints_true[0]):, :], Actions[:int(N/2), int(changepoints_true[0]):], Rewards[:int(N/2), int(changepoints_true[0]):])
     target_model_oracle2, episode_oracle2 = run(States[int(N/2):, int(changepoints_true[int(N/2)]):, :], Actions[int(N/2):, int(changepoints_true[int(N/2)]):], Rewards[int(N/2):, int(changepoints_true[int(N/2)]):])
+    print('train time',datetime.now() - startTime)
+    # opt_values_oracle = []
+    # for i in range(nrep):
+    #     if i < nrep/2:
+    #         observation = generate_initial_state()
+    #         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #         predicted = target_model_oracle1.predict(encoded_reshaped, verbose=0).flatten()
+    #         opt_values_oracle.append(max(predicted))
+    #     else:
+    #         observation = generate_initial_state()
+    #         encoded_reshaped = observation.reshape([1, observation.shape[0]])
+    #         predicted = target_model_oracle2.predict(encoded_reshaped, verbose=0).flatten()
+    #         opt_values_oracle.append(max(predicted))
     opt_values_oracle = []
-    for i in range(nrep):
-        if i < nrep/2:
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_oracle1.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_oracle.append(max(predicted))
+    # print(nrep)
+    # startTime = datetime.now()
+    for k in range(2):
+        if k == 0:
+            # startTime1 = datetime.now()
+            est_v = calculate_value(transition_matrix_list[k], target_model_oracle1, int(nrep/2), T1_interval)
+            # print('value time',datetime.now() - startTime1)
         else:
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_oracle2.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_oracle.append(max(predicted))
+            est_v = calculate_value(transition_matrix_list[k], target_model_oracle2, int(nrep/2), T1_interval)
+        opt_values_oracle.extend(est_v)
+
     print("oracle value:", np.mean(opt_values_oracle)) #signal0.5: 0.17776427
     file_name = method + '.dat'
     save_data(file_name,np.mean(opt_values_oracle), np.std(opt_values_oracle)/np.sqrt(nrep), (int(episode_oracle1 == train_episodes)+int(episode_oracle2 == train_episodes))/2, target_model_oracle1, target_model_oracle2)
-
 #%% indi
 if method == "indi":
     opt_values_indi = []
@@ -522,12 +590,34 @@ if method == "indi":
     for i in range(N):
         target_model_i, episode_i = run(States[i,:,:].reshape((1,-1,p)), Actions[i, :].reshape((1,-1)), Rewards[i, :].reshape((1,-1)), MIN_REPLAY_SIZE=50)
         episode_indi.append(episode_i)
-        for j in range(int(nrep/N)):
-            observation = generate_initial_state()
-            encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            predicted = target_model_i.predict(encoded_reshaped, verbose=0).flatten()
-            opt_values_indi.append(max(predicted))
+        # for j in range(int(nrep/N)):
+        #     observation = generate_initial_state()
+        #     encoded_reshaped = observation.reshape([1, observation.shape[0]])
+        #     predicted = target_model_i.predict(encoded_reshaped, verbose=0).flatten()
+        #     opt_values_indi.append(max(predicted))
+        est_v = calculate_value(transition_matrix[g_index_true[i]], target_model_i, int(nrep/N), T1_interval)
     print("indi value:", np.mean(opt_values_indi)) #signal0.5: 0.17776427
     file_name = method + '.dat'
     save_data(file_name,np.mean(opt_values_oracle), np.std(opt_values_oracle)/np.sqrt(nrep), np.mean(episode_indi), target_model_oracle1, target_model_oracle2)
 
+#%% estimated
+if method == "estimated":
+    import simu.multiple_init as minit
+    # K_list = range(2,6)
+    out=minit.run_init(States, Actions, seed)
+    g_index_estimated =out.g_index
+    changepoints_estimated = out.changepoints
+    K_est = len(np.unique(out.g_index))
+    opt_values_estimated = []
+    for k in range(K_est):
+        k = int(k)
+        target_model_estimatedk, episode_estimatedk = run(States[g_index_estimated==k, int(changepoints_estimated[g_index_estimated==k][0]):, :], Actions[g_index_estimated==k, int(changepoints_estimated[g_index_estimated==k][0]):], Rewards[g_index_estimated==k, int(changepoints_estimated[g_index_estimated==k][0]):])
+        Ck, occurCount = np.unique(g_index_true[g_index_estimated==k], return_counts=True)
+        for i in len(Ck):
+            ck = int(Ck[i])
+            est_v = calculate_value(transition_matrix_list[ck], target_model_estimatedk, int(occurCount[i]*nrep/N), T1_interval)
+            opt_values_estimated.extend(est_v)
+    print("oracle value:", np.mean(opt_values_estimated)) #signal0.5: 0.17776427
+    file_name = method + '.dat'
+    save_data(file_name,np.mean(opt_values_estimated), np.std(opt_values_estimated)/np.sqrt(nrep), 0, target_model_estimatedk)
+    
