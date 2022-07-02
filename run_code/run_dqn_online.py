@@ -6,7 +6,7 @@ sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu")
 from joblib import Parallel, delayed
 M = 1
 method_list = ['overall']
-signal_factor_list = [0.5]
+signal_factor_list = [1, 0.5, 0.1]
 train_episodes = 1
 test_size_factor = 1
 for signal_factor in signal_factor_list:

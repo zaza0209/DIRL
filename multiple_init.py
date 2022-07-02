@@ -1,8 +1,9 @@
 '''
 multiple initialization methods
 '''
-import sys, os, pickle, re
+import sys, os, pickle
 import numpy as np
+from simu.dqn_offline import setpath
 os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/results")
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 # import simu.simulate_data_pd as sim
@@ -12,21 +13,21 @@ import simu.simu_mean_detect as mean_detect
 # from sklearn.metrics.cluster import adjusted_rand_score
 
 #%%
-def setpath(seed, method):
-    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
-    append_name = '_N' + str(N) + '_1d'
-    if not os.path.exists('results/value_evaluation'):
-        os.makedirs('results/value_evaluation', exist_ok=True)
-    data_path = 'results/value_evaluation/coef'+re.sub("\\ ", "",re.sub("\\.", "", re.sub("\\]","", re.sub("\\[", "", re.sub("\\, ", "", str(coef1))))))+'/sim_result_trans' + trans_setting + '_reward' + reward_setting + '_gamma' + re.sub("\\.", "", str(gamma)) + \
-                                                 append_name
-    if not os.path.exists(data_path):
-        os.makedirs(data_path, exist_ok=True)
-    data_path += '/sim_result' + method + '_gamma' + re.sub("\\.", "", str(gamma)) + \
-                 append_name + '_' + str(seed)
-    if not os.path.exists(data_path):
-        os.makedirs(data_path, exist_ok=True)
-    os.chdir(data_path)
-    return
+# def setpath(seed, method):
+#     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
+#     append_name = '_N' + str(N) + '_1d'
+#     if not os.path.exists('results/value_evaluation'):
+#         os.makedirs('results/value_evaluation', exist_ok=True)
+#     data_path = 'results/value_evaluation/coef'+re.sub("\\ ", "",re.sub("\\.", "", re.sub("\\]","", re.sub("\\[", "", re.sub("\\, ", "", str(coef1))))))+'/sim_result_trans' + trans_setting + '_reward' + reward_setting + '_gamma' + re.sub("\\.", "", str(gamma)) + \
+#                                                  append_name
+#     if not os.path.exists(data_path):
+#         os.makedirs(data_path, exist_ok=True)
+#     data_path += '/sim_result' + method + '_gamma' + re.sub("\\.", "", str(gamma)) + \
+#                  append_name + '_' + str(seed)
+#     if not os.path.exists(data_path):
+#         os.makedirs(data_path, exist_ok=True)
+#     os.chdir(data_path)
+#     return
 def save_data(file_name, tmp,seed, method):
     setpath(seed, method)
     # print('save data')

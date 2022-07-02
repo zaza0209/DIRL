@@ -4,15 +4,15 @@ import numpy as np
 os.chdir("C:/Users/test/Dropbox/tml/IHS/simu")
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 from joblib import Parallel, delayed
-M = 1
+M = 20
 method_list = ['oracle']
-signal_factor_list = [1]
+signal_factor_list = [1, 0.5, 0.1]
 train_episodes = 100
 test_size_factor = 10
 # init_method = 'gmr'
 for signal_factor in signal_factor_list:
   for method in method_list:
-      for seed in range(5):
+      for seed in range(M):
           print('seed',seed)
           arg_pass = str(seed) + ' '+ str(signal_factor)+ ' '+ method + ' ' + str(train_episodes) +' ' + str(test_size_factor) 
           runfile('simu/dqn_offline.py',args=arg_pass)
@@ -22,7 +22,7 @@ import multiprocessing
 num_threads=multiprocessing.cpu_count()
 
 method_list = ['oracle']
-M = 2
+M = 20
 signal_factor_list = [1]
 train_episodes = 100
 test_size_factor = 10
