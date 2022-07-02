@@ -234,4 +234,5 @@ def my_hierachy(States, K, distance_metric='correlation', linkage = "average"):
     # cluster_labels = fcluster(linkage_matrix, 800, criterion='distance')
     # print(np.unique(cluster_labels))
     #>> 2 unique clusters
+    cluster_labels = (cluster_labels-1).astype(int)
     return cluster_labels

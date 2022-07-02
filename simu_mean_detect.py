@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics.cluster import adjusted_rand_score
-from tslearn.clustering import TimeSeriesKMeans
+# from tslearn.clustering import TimeSeriesKMeans
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import namedtuple
@@ -579,6 +579,7 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
        X = []
        y = []
        N_k = sum(g_index == k)
+       # print('g_index',g_index)
        for i in range(int(N)):
            if g_index[i] == k:
                # print("k =",k, "i =", i)
@@ -603,20 +604,6 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
                X.append(mat)
                y.append(States[i, 1:,:])
 
-               # mat_tmp = np.hstack([np.ones([u,1]), States[i, :u, :],
-               #                     Actions[i, :u].reshape([u,1]),
-               #                     States[i, :u, :] * (Actions[i, :u].reshape([u,1]))]) # amend this if Sit is multivairate
-               # X1.append(mat_tmp)
-               # y1.append(States[i, 1:u+1,:])
-               # mat_tmp = np.hstack([np.ones([T -u - 1,1]), States[i, u:-1, :],
-               #                     Actions[i, u:].reshape([T -u - 1,1]), States[i, u:-1, :] * (Actions[i, u:].reshape([T -u - 1,1]))]) # amend this if Sit is multivairate
-               # X2.append(mat_tmp)
-               # y2.append(States[i, u+1:,:])
-               # mat_tmp = np.hstack([np.ones([T-1,1]), States[i, :-1, :],
-               #                     Actions[i, :].reshape([T-1,1]),
-               #                     States[i, :-1, :] * (Actions[i, :].reshape([T-1,1]))]) # amend this if Sit is multivairate
-               # X.append(mat_tmp)
-               # y.append(States[i, 1:,:])
        X1 = np.vstack(np.array(X1))
        X1 = np.kron(np.eye(p,dtype=int),X1)
        y1 = np.vstack(np.array(y1)).T.reshape(-1, 1)
@@ -664,6 +651,7 @@ def changedistribution_detect(g_index, States, N, T,  kappa, epsilon, Actions=No
             maxcusum= np.max(res)
         else: # do not parallel
             for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1):
+                print('u',u)
                 cusum_tmp = run_one(u)
                 cusum_list.append(cusum_tmp)
                 # cusum_list.index(max(cusum_list))
@@ -713,6 +701,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index_0 = km.labels_
     else:
         g_index_0 = g_index_init
+    print('g_index_0', g_index_0)
     changepoint_list = np.zeros([N, max_iter+1])
     g_index_list = np.zeros([N, max_iter+1])
     if loss_path:
