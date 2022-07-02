@@ -3,14 +3,9 @@ multiple initialization methods
 '''
 import sys, os, pickle
 import numpy as np
-# from simu.dqn_offline import setpath
 os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/")
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
-# import simu.simulate_data_pd as sim
-# import simu.compute_test_statistics as stat
 import simu.simu_mean_detect as mean_detect
-# import simu.utilities as ut
-# from sklearn.metrics.cluster import adjusted_rand_score
 
 #%%
 def setpath(seed, method):
@@ -38,7 +33,6 @@ def save_data(file_name, tmp,seed, method):
                      'g_index_eachiter':tmp.g_index_eachiter,
                      'loss':tmp.loss,
                      "ic":tmp.IC}, f)
-
     return
 #%%
 def random_changepoints(States, Actions, K, seed, cp_num=5,nthread=3, C=1):
@@ -78,7 +72,7 @@ def varying_K(States, Actions, K, seed, init_cluster_method='gmr', distance_metr
     return out, out.IC
 
 #%%
-def run_init(States, Actions, seed, method_list = ['random_cp', 'gmr','kmeans', 'hierachy'], K_list = range(2,6), cp_num=5, distance_metric = 'correlation', linkage ='average', nthread=3):
+def run_init(States, Actions, seed, method_list = ['random_cp', 'gmr','kmeans', 'hierarchy'], K_list = range(2,6), cp_num=5, distance_metric = 'correlation', linkage ='average', nthread=3):
     IC_max = None
     for K in K_list:
         if 'random_cp' in method_list:

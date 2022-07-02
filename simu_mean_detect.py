@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics.cluster import adjusted_rand_score
-# from tslearn.clustering import TimeSeriesKMeans
+from tslearn.clustering import TimeSeriesKMeans
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import namedtuple
