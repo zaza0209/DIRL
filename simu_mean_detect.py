@@ -24,6 +24,7 @@ def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
     y = [[] for i in range(K)]
     Xi = [[] for i in range(N)]
     yi = [[] for i in range(N)]
+    weights = []
     for i in range(int(N)):
         g = g_index.item(i)
         # construct the design matrix
@@ -35,6 +36,7 @@ def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
         y[g].extend(States[i, changepoints.item(i)+1:,:].tolist())
         Xi[i] = mat
         yi[i] = States[i, changepoints.item(i)+1:,:]
+        weights.extend([1/mat.shape[0] for r in range(p*mat.shape[0])])
     for g in range(K):
         # print(g)
         y[g] = np.array(y[g]).T.reshape(-1,1)
@@ -45,7 +47,7 @@ def goodnessofClustering(States, N, T, K, changepoints,Actions, g_index):
     y = np.vstack(y)
 
     reg = LinearRegression(fit_intercept=False) # coef: [beta1, beta2, ..., betaK] for K clusters
-    res=reg.fit(X, y)
+    res=reg.fit(X, y, sample_weight=weights)
     loss =  0
     for i in range(N):
         Xistack = np.kron(np.eye(K*p,dtype=int),Xi[i])
@@ -139,6 +141,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     y = [[] for i in range(K)]
     Xi = [[] for i in range(N)]
     yi = [[] for i in range(N)]
+    weights = []
     for i in range(int(N)):
         g = g_index.item(i)
         # construct the design matrix
@@ -150,6 +153,8 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         y[g].extend(States[i, changepoints.item(i)+1:,:].tolist())
         Xi[i] = mat
         yi[i] = States[i, changepoints.item(i)+1:,:]
+        # print('mat.shape[0]', mat.shape[0],'cp',changepoints.item(i),'1/mat.shape[0]',1/mat.shape[0])
+        weights.extend([1/mat.shape[0] for r in range(p*mat.shape[0])])
     for g in range(K):
         y[g] = np.array(y[g]).T.reshape(-1,1)
         mat_list[g] = np.vstack(np.array(mat_list[g]))
@@ -159,7 +164,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
     y = np.vstack(y)
 
     reg = LinearRegression(fit_intercept=False) # coef: [beta1, beta2, ..., betaK] for K clusters
-    res=reg.fit(X, y)
+    res=reg.fit(X, y, sample_weight=weights)
     g_index_new = np.zeros(g_index.shape, dtype=int)
     # iteration begin
     loss = 0
@@ -218,6 +223,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             g_index = g_index_new.copy()
             mat_list = [[] for i in range(K)]
             y = [[] for i in range(K)]
+            weights = []
             for i in range(int(N)):
                 g = g_index.item(i)
                 # construct the design matrix
@@ -227,6 +233,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
                 mat = np.delete(mat_tmp, np.s_[2 + p*2:mat_tmp.shape[1]], 1)
                 mat_list[g].extend(mat.tolist())
                 y[g].extend(States[i, changepoints.item(i)+1:,:].tolist())
+                weights.extend([1/mat.shape[0] for r in range(p*mat.shape[0])])
             for g in range(K):
                 # print('g',g)
                 y[g] = np.array(y[g]).T.reshape(-1,1)
@@ -235,7 +242,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
 
             X = block_diag(*mat_list)
             y = np.vstack(y)
-            res=reg.fit(X, y)
+            res=reg.fit(X, y, sample_weight=weights)
     return g_index, loss
 
 
