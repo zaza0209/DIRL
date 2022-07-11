@@ -170,7 +170,7 @@ def gen_dat(N, T, K, coef, signal, changepoint_list=None,
 States, Rewards, Actions, changepoints_true, g_index_true = gen_dat(N, T, K, 
                                                       coef, signal,None,
                                                       trans_setting,seed + 100)
-plt.plot(States[0,:,0])
+# plt.plot(States[0,:,0])
 
 #%% plot trajectory
 # fig, ax = plt.subplots()
