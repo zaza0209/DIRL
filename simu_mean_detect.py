@@ -510,7 +510,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
         y2 = []
         X = []
         y = []
-        N_k = sum(g_index == k)
+        # N_k = sum(g_index == k)
         for i in range(int(N)):
             if g_index[i] == k:
                 poly = PolynomialFeatures(2, interaction_only=True)
@@ -547,9 +547,13 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
         reg2 = LinearRegression(fit_intercept=False)
         res2=reg2.fit(X2, y2)
 
-        var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N_k*p*(T-1))
-        var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2)**2 / u
-                + np.linalg.norm(y2 - res2.predict(X2),ord=2)**2 / (T-u-1))/(N_k*p)
+        # var0 = np.linalg.norm(y - res0.predict(X), ord=2)**2/(N_k*p*(T-1))
+        # var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2)**2 / u
+        #         + np.linalg.norm(y2 - res2.predict(X2),ord=2)**2 / (T-u-1))/(N_k*p)
+        var0 = np.linalg.norm(y - res0.predict(X), ord=2) ** 2 / y.shape[0]
+        # weigh the variance of each segment by their sample sizes: (# people) * (# time points) * (# dimension of States)
+        var1 = (np.linalg.norm(y1 - res1.predict(X1), ord=2) ** 2
+                + np.linalg.norm(y2 - res2.predict(X2), ord=2) ** 2) / y.shape[0]
         mean0 = res0.predict(X)
         mean1 = res1.predict(X1)
         mean2 = res2.predict(X2)
@@ -592,7 +596,7 @@ def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsil
        y2 = []
        X = []
        y = []
-       N_k = sum(g_index == k)
+       # N_k = sum(g_index == k)
        # print('g_index',g_index)
        for i in range(int(N)):
            if g_index[i] == k:
@@ -742,7 +746,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index_0 = ut.my_hierachy(States[:, init_cluster_range:, :], K,distance_metric, linkage)
         elif init_cluster_method == 'kmeans':
             km = TimeSeriesKMeans(n_clusters=K, metric=distance_metric,
-                       random_state=0).fit(States[:, init_cluster_range:, :])
+                        random_state=0).fit(States[:, init_cluster_range:, :])
             g_index_0 = km.labels_
     else:
         g_index_0 = g_index_init
