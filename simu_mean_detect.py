@@ -247,7 +247,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
 
 
 #%% changepoint detection functions
-def changemean_detect(g_index, States, N, T, kappa_max,kappa_min, epsilon,Actions=None, cusum_forward=None,
+def changemean_detect(g_index, States, N, T, kappa_max,kappa_min,kappa_interval, epsilon,Actions=None, cusum_forward=None,
                       cusum_backward=None, C1=None, C2=None, C3=None, alpha = 0.05, df=5, nthread=0):
     '''
     detect change in means
@@ -288,7 +288,7 @@ def changemean_detect(g_index, States, N, T, kappa_max,kappa_min, epsilon,Action
             changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
 
-def changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, Actions=None,
+def changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min,kappa_interval, epsilon, Actions=None,
                               cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None, C3=None, alpha = 0.05, df = 5, nthread=0):
     '''
@@ -377,7 +377,7 @@ def changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, 
     changepoints = changepoints.astype(int)
     return [changepoints, maxcusum_list, tauk]
 
-def changedistribution_detect2(g_index, States, N, T,kappa_max,  kappa_min,  epsilon, Actions=None,
+def changedistribution_detect2(g_index, States, N, T,kappa_max,  kappa_min,kappa_interval, epsilon, Actions=None,
                               cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None,C3=2, alpha = 0.05, df = 4, nthread=0):
     '''
@@ -576,7 +576,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, B, nthread_B=1):
 
     return sample_stat
 
-def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, Actions=None,
+def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, kappa_interval, epsilon, Actions=None,
                               cusum_forward=None, cusum_backward=None, C1=None,
                               C2=None,C3=2, alpha = 0.05, df = 5,
                               nthread=0, threshold_type="permutation", B = 100, nthread_B= None):
@@ -674,30 +674,23 @@ def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsil
        logL0 = np.sum(np.log(L0))
        logL1 = np.sum(np.log(L1))
        cusum_tmp = -2*(logL0 - logL1)
-       # print(cusum_tmp)
-       # print(np.linalg.norm(mean1-y1,ord=2), np.linalg.norm(mean2 - y2, ord=2), np.linalg.norm(mean0-y,ord=2))
-       # print(res1.coef_)
-       # print(res2.coef_)
        return cusum_tmp
-
+    kappa_list = np.arange(kappa_min, kappa_max, step=kappa_interval, dtype=np.int32)
     for k in range(K):
-        for kappa in range(kappa_min, kappa_max):
-            # print("kappa =", kappa)
-            # print("threshold_type =", threshold_type)
+        for kappa in kappa_list:
+            # print('====== kappa',kappa)
             is_cp_found=1
             maxcusum = 0
-            cusum_list = []
             if nthread !=0: # parallel
                 res = Parallel(n_jobs=nthread)(delayed(run_one)(u, kappa) for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1))
                 tauk[k] = int(T-epsilon*T)-1- res.index(np.max(res))
                 maxcusum= np.max(res)
             else: # do not parallel
+                cusum_list = []
                 for u in range(int(T-epsilon*T)-1, int(T - kappa + epsilon*T), -1):
                     # print('u',u)
                     cusum_tmp = run_one(u, kappa)
                     cusum_list.append(cusum_tmp)
-                    # cusum_list.index(max(cusum_list))
-                    # plt.plot(cusum_list)
                     if u == int(T-epsilon*T)-1:
                         maxcusum = cusum_tmp
                         maxcusum_list[k] = maxcusum
@@ -714,12 +707,17 @@ def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsil
                     nthread_B = nthread
                 sample_stat = permutation_test(States[:, int(T-kappa):, ], Actions[:, int(T-kappa):], g_index, k, int(tauk[k]-T+kappa), B, nthread_B)
                 threshold = np.percentile(sample_stat, (1 - alpha)*100)
-                print("sample_stat =", sample_stat)
-            print("maxcusum =", maxcusum)
-            print("threshold =", threshold)
+            #     print("sample_stat =", sample_stat)
+            # print("maxcusum =", maxcusum)
+            # print("threshold =", threshold)
             if maxcusum < threshold:
                 tauk[k] = 0
                 is_cp_found=0
+            else:
+                if np.where(kappa_list == kappa) == 0:
+                    tauk[k] = T-1-kappa_list[np.where(kappa_list == kappa)]
+                else: 
+                    tauk[k] = T-1-kappa_list[np.where(kappa_list == kappa)[0][0] - 1]
             changepoints[(g_index == k), :] = tauk[k]
             if is_cp_found:
                 break
@@ -728,12 +726,12 @@ def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsil
 
 #%% loops
 def clusteringNchangepoints(example, clustering, changepoint_detect, States,
-                            Actions, N, T, p, epsilon, kappa_max, kappa_min, K, cusum_forward,
+                            Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                             cusum_backward, C1=1, C2=1/2,C3=2, max_iter=30,
                             init_cluster_range=None, nthread=0, C=1,
                             g_index_init = None,clustering_warm_start=1,
                             loss_path =0, threshold_type="permutation", B = 100,
-                            nthread_B= None, init_cluster_method = 'gmr',distance_metric="correlation", linkage = "average"):
+                            nthread_B= None, init_cluster_method = 'kmeans',distance_metric="correlation", linkage = "average"):
     if g_index_init is None:
         if init_cluster_range is None:
             init_cluster_range = int(T/4) - 1
@@ -750,7 +748,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index_0 = km.labels_
     else:
         g_index_0 = g_index_init
-    print('g_index_0', g_index_0)
+    # print('g_index_0', g_index_0)
     changepoint_list = np.zeros([N, max_iter+1])
     g_index_list = np.zeros([N, max_iter+1])
     if loss_path:
@@ -762,7 +760,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
     for m in range(max_iter):
         # print("======= m", m, "=========")
         out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions,example=example, N=N,
-                               T=T, kappa_max=kappa_max, kappa_min=kappa_min,
+                               T=T, kappa_max=kappa_max, kappa_min=kappa_min, kappa_interval=kappa_interval,
                                epsilon=epsilon, cusum_forward=cusum_forward,
                                cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
         changepoints = np.array(out[0])
@@ -787,7 +785,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
             g_index_0 = g_index.copy()
         iter_num = m
     out=changepoint_detect(g_index = g_index,States=States, Actions=Actions,example=example, N=N, T=T,
-                           kappa_max=kappa_max, kappa_min=kappa_min,
+                           kappa_max=kappa_max, kappa_min=kappa_min, kappa_interval=kappa_interval,
                            epsilon=epsilon, cusum_forward=cusum_forward,
                            cusum_backward=cusum_backward, C1=C1, C2=C2,nthread=nthread)
     changepoints = np.array(out[0])
@@ -812,7 +810,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
         return result(iter_num, g_index, changepoints.flatten(), changepoint_list, g_index_list, loss, ic)
 
 def changepointsNclustering(example, clustering, changepoint_detect, States,Actions,
-                            N, T, p, epsilon, kappa_max, kappa_min, K, cusum_forward,
+                            N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                             cusum_backward, C1=1, C2=1/2, C3=2,
                             max_iter=30, max_iter_gmr = 50, nthread=0, C=1,
                             changepoints_init=None, g_index_init = None, clustering_warm_start=1,
@@ -829,7 +827,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     if changepoints_init is None:
         # g_index = np.arange(0, N)
         out = changepoint_detect(g_index = g_index,States=States, N=N, T=T,
-                                 kappa_max=kappa_max, kappa_min=kappa_min,
+                                 kappa_max=kappa_max, kappa_min=kappa_min, kappa_interval=kappa_interval,
                                  epsilon=epsilon,example=example,
                                  Actions=Actions,
                                  cusum_forward=cusum_forward, cusum_backward=cusum_backward,
@@ -853,7 +851,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
         # print("g_index update",g_index)
         out=changepoint_detect(g_index = g_index,States=States, Actions=Actions,
                                example=example,N=N, T=T,
-                               kappa_max=kappa_max, kappa_min=kappa_min,
+                               kappa_max=kappa_max, kappa_min=kappa_min,kappa_interval=kappa_interval,
                                epsilon=epsilon,
                                  cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                  C1=C1, C2=C2,nthread=nthread)
@@ -896,7 +894,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
         return result(iter_num, g_index, changepoints, changepoint_list, g_index_list, loss, ic)
 
 #%% fit
-def fit(States, Actions, example = "mean", init = "changepoints", kappa_max = None,kappa_min = None, epsilon=0.1, K=2,
+def fit(States, Actions, example = "mean", init = "changepoints", kappa_max = None,kappa_min = None, kappa_interval=None,epsilon=0.1, K=2,
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
         max_iter_gmr = 50, seed = 1, nthread=0, C=1,
         changepoints_init=None, g_index_init = None, clustering_warm_start=1,
@@ -915,28 +913,30 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa_max = No
         kappa_max = T
     if kappa_min is None:
         kappa_min = max(25, int(2*epsilon*T))
+    if kappa_interval is None:
+        kappa_interval = round(10*np.log(T**3 *N)/N)
     if df is None:
         df = (2+2*p)*p
 
     np.random.seed(seed)
-    def changepoint_detect(g_index, States, N, T,  kappa_max, kappa_min, epsilon, example=example, Actions=Actions,
+    def changepoint_detect(g_index, States, N, T,  kappa_max, kappa_min,kappa_interval, epsilon, example=example, Actions=Actions,
                               cusum_forward=None, cusum_backward=None, C1=C1,
                               C2=C2, C3=C3,alpha = alpha, df = df,nthread=nthread,
                               threshold_type=threshold_type, B = 100, nthread_B= None):
         if example == "mean":
             # print('cluster mean')
-            return changemean_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, Actions=None,
+            return changemean_detect(g_index, States, N, T, kappa_max, kappa_min, kappa_interval,epsilon, Actions=None,
                                  cusum_forward=cusum_forward,
                                  cusum_backward=cusum_backward, C1=C1 , C2=C2, C3=C3,
                                  alpha=None, df=None,nthread=nthread)
         elif example =="marginal":
             # print("marginal")
-            return changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, Actions=Actions,
+            return changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min, kappa_interval,epsilon, Actions=Actions,
                                          cusum_forward=None, cusum_backward=None,
                                          C1=C1, C2=C2,C3=C3, alpha=alpha, df=df,nthread=nthread)
         elif example == "cdist":
             # print(1)
-            return changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, epsilon, Actions=Actions,
+            return changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min,kappa_interval, epsilon, Actions=Actions,
                                          cusum_forward=None, cusum_backward=None,
                                          C1=None, C2=None,C3= C3, alpha=alpha,
                                          df=df,nthread=nthread,
@@ -964,7 +964,7 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa_max = No
     # fit
     if init == "changepoints":
         result = changepointsNclustering(example, clustering, changepoint_detect,
-                                         States, Actions, N, T, p,epsilon,kappa_max, kappa_min, K,
+                                         States, Actions, N, T, p,epsilon,kappa_max, kappa_min,kappa_interval, K,
                                          cusum_forward,cusum_backward, C1, C2, C3,
                                          max_iter, max_iter_gmr, nthread, C,
                                          changepoints_init, g_index_init, clustering_warm_start,
@@ -973,16 +973,24 @@ def fit(States, Actions, example = "mean", init = "changepoints", kappa_max = No
 
     else:
         result = clusteringNchangepoints(example, clustering, changepoint_detect,
-                                         States, Actions, N, T, p, epsilon,kappa_max, kappa_min,
+                                         States, Actions, N, T, p, epsilon,kappa_max, kappa_min,kappa_interval,
                                          K, cusum_forward, cusum_backward, C1, C2, C3,
                                          max_iter, init_cluster_range, nthread, C,
                                          g_index_init, clustering_warm_start,
                                          loss_path,
                                          threshold_type, B, nthread_B,init_cluster_method,distance_metric, linkage)
+        
+                # clusteringNchangepoints(example, clustering, changepoint_detect, States,
+                #                             Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, 
+                #                             K, cusum_forward,   cusum_backward, C1=1, C2=1/2,C3=2, 
+                #                             max_iter=30, init_cluster_range=None, nthread=0, C=1,
+                #                             g_index_init = None,clustering_warm_start=1,
+                #                             loss_path =0, threshold_type="permutation", B = 100,
+                #                             nthread_B= None, init_cluster_method = 'gmr',distance_metric="correlation", linkage = "average"):
 
     return result
 
-def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa_max = None, kappa_min=None,epsilon=0.1,
+def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,epsilon=0.1,
         C1=1, C2=1/2, C3=2, alpha = 0.05, df=None, max_iter=5, init_cluster_range=None,
         max_iter_gmr = 50, seed = 1, nthread=0, C=1, changepoints_init=None,
         g_index_init_list = None, clustering_warm_start=1, loss_path =0,
@@ -1002,7 +1010,7 @@ def fit_tuneK(K_list, States, Actions, example = "mean", init = "changepoints", 
     for K in K_list:
         # print("K",K)
 
-        out = fit(States, Actions, example, init, kappa_max,kappa_min, epsilon, K,
+        out = fit(States, Actions, example, init, kappa_max,kappa_min, kappa_interval,epsilon, K,
                 C1, C2, C3, alpha, df, max_iter, init_cluster_range,
                 max_iter_gmr, seed, nthread, C,changepoints_init, g_index_init_list[K_list.index(K)],
                 clustering_warm_start, loss_path,threshold_type, B, nthread_B,init_cluster_method,distance_metric, linkage)
