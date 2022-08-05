@@ -714,7 +714,7 @@ def changedistribution_detect(g_index, States, N, T, kappa_max, kappa_min, kappa
                 tauk[k] = 0
                 is_cp_found=0
             else:
-                if np.where(kappa_list == kappa) == 0:
+                if np.where(kappa_list == kappa)[0][0] == 0:
                     tauk[k] = T-1-kappa_list[np.where(kappa_list == kappa)]
                 else: 
                     tauk[k] = T-1-kappa_list[np.where(kappa_list == kappa)[0][0] - 1]
