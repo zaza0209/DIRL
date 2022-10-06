@@ -3,7 +3,6 @@ Simulate stationary time series data and apply Q-learning.
 Generate p dimensional states
 '''
 
-
 import numpy as np
 import math
 
@@ -44,19 +43,20 @@ class simulate_data():
         return 0.5 * (2.0 * self.At - 1.0) * self.St + np.random.normal(mean, cov, 1)
 
 
-    def transition_pwconstant2(self, t, mean, cov, coef =[[0, 0.25, 0, 0.25],[0,0.25,0,-0.25]], signal = 0):
+    def transition_pwconstant2(self, t, mean, cov, coef =[[0, 0.25, 0, 0.25],[0,0.25,0,-0.25]]):
         '''
         Generate time-homogeneous transition at time t
         # :param t: the time at which we generate a transition
         :return: a scalar of state
+        [c1 *St+ c2*(2A-1) + c3*St*(2A-1)+c0]
         '''
         if t < self.Td2:
-            print('<t',t,'self.Td2:',self.Td2)
+            # print('<t',t,'self.Td2:',self.Td2)
             return (coef[0][1] *self.St + coef[0][2] * (2.0 * self.At - 1.0) 
                     + coef[0][3] * self.St * (2.0 * self.At - 1.0) + coef[0][0] 
                     + np.random.normal(mean, cov, 1))
         elif t >= self.Td2:
-            print('>t',t,'self.Td2:',self.Td2)
+            # print('>t',t,'self.Td2:',self.Td2)
             # print("t>Td2")
             # tmp =(coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
             #         + coef[1][3] * self.St * (2.0 * self.At - 1.0) 
@@ -64,7 +64,7 @@ class simulate_data():
             # print(tmp)
             return (coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
                     + coef[1][3] * self.St * (2.0 * self.At - 1.0) 
-                    + coef[1][0] + signal + np.random.normal(mean, cov, 1))
+                    + coef[1][0] + np.random.normal(mean, cov, 1))
             #return coef * self.St * (2.0 * self.At - 1.0) + signal + np.random.normal(mean, cov, 1)
         # if t < self.Td2:
         #     return 1*self.St + self.At -1 * coef * self.St * self.At  + np.random.normal(mean, cov, 1)
@@ -73,17 +73,19 @@ class simulate_data():
             #return coef * self.St * (2.0 * self.At - 1.0) + signal + np.random.normal(mean, cov, 1)
 
 
-    def transition_smooth2(self, t, mean, cov, w=1.0, coef = 0.5, signal= 0):
+    def transition_smooth2(self, t, mean, cov,coef, w=1.0):
         '''
         Generate smooth transition function in time with 1 smooth change point
         t = the time at which we generate a reward
         :return: a scalar of reward at time t
         '''
         def R1(t):
-            return 1*self.St + self.At -1 * coef * self.St * (2.0 * self.At - 1.0) 
+            return (coef[0][1] *self.St + coef[0][2] * (2.0 * self.At - 1.0) 
+                    + coef[0][3] * self.St * (2.0 * self.At - 1.0) + coef[0][0])
 
         def R2(t):
-            return 1*self.St + self.At + coef * self.St * (2.0 * self.At - 1.0) + signal # return coef * self.St * (2.0 * self.At - 1.0) + signal
+            return (coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
+                    + coef[1][3] * self.St * (2.0 * self.At - 1.0)  + coef[1][0])
 
         if t < self.Td2_minus_delta+1: # the first piece
             # print('first piece')
