@@ -1,14 +1,6 @@
-import platform, sys, os, pickle, re
+# import sys, re
+from joblib import Parallel, delayed
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
-import simu.compute_test_statistics as stat
-import simu.simulate_data_pd as sim
-import simu.simu_mean_detect as mean_detect
-import simu.utilities as uti
-from sklearn.metrics.cluster import adjusted_rand_score
-import pprint
-import pandas as pd
 #%% IC
 def h_in_IC(changepoints,T):
     '''
@@ -16,7 +8,7 @@ def h_in_IC(changepoints,T):
     '''
     return (np.sum(T-1 -changepoints)/np.log(np.sum(T-1 - changepoints)))
 
-def IC(loss, changepoints, g_index, N, T, K, C):
+def IC(loss, changepoints, g_index, N, T, K, C=10):
     # """
     # Information criterion
     # Parameters
@@ -35,7 +27,7 @@ def IC(loss, changepoints, g_index, N, T, K, C):
     # print('occurCount',occurCount)
     # print('(T-1 -changepoints)[np.s_[indicesList]]',(T-1 -changepoints)[np.s_[indicesList]])
     # print('np.log(np.sum(T-1 -changepoints)',np.log(np.sum(T-1 -changepoints)))
-    # print("ic",loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]]) * C * np.log(np.sum(T-1 -changepoints)))
+    print("ic",loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T), ', ',K,'*l', Kl,  ', ',C,'* h=', C*occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * h_in_IC(changepoints, T))
     return loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T)
 
 def paramInIC(model, N, K, T, include_path_loss =0):
@@ -56,121 +48,28 @@ def paramInIC(model, N, K, T, include_path_loss =0):
             Ck, indicesList, occurCount = np.unique(g_eachiter_rev[:,ii], return_index = True,return_counts=True)
             c_mat_list.append(occurCount.dot((T-1 -cp_eachiter_rev[:,ii])[np.s_[indicesList]])/(N*T) * h_in_IC(cp_eachiter_rev[:,ii], T))
         return Kl_mat_list[::-1], c_mat_list[::-1]
-# def multi_init:
-#     init_list = ["changepoints_ora", "clustering_ora","changepoint_separ", "changepoint_no", "changepoints_random", 'randomclustering']
-#     # init_list = ["changepoints_ora", "clustering_ora",'randomclustering']
-#     C_list = np.arange(0,10,1).tolist()
-#     K_list = range(2, 6)
-#     ic_list = [None] * len(init_list)
-#     loss_mat = [None] * len(init_list)
-#     Kl_mat = [None] * len(init_list)
-#     c_mat = [None] * len(init_list)
-#     for init in init_list:
-#         if init == "randomclustering":
-#             loss_mat[init_list.index(init)] = np.zeros([M, len(K_list)])
-#             Kl_mat[init_list.index(init)] = np.zeros([M, len(K_list)])
-#             c_mat[init_list.index(init)] = np.zeros([M, len(K_list)])
-#             for seed in range(M):
-#                 for K in K_list:
-#                     setpath(trans_setting, K = K, init=init)
-#                     file_name = "seed_"+str(seed)+".dat"
-#                     pkl_file = open(file_name, 'rb')
-#                     t = pickle.load(pkl_file)
-#                     # ic_list[K_list.index(K)] = uti.IC(t['loss'], t['changepoint'], 
-#                     #                               t['group'], N, T, K, C)
-#                     loss_mat[init_list.index(init)][seed, K_list.index(K)] = t['loss']# / np.mean(T - t['changepoint'] - 1)
-#                     # Kl_mat[init_list.index(init)][seed, K_list.index(K)] =  K*np.log(np.sum(T-1 -t['changepoint']))
-#                     # Ck, indicesList, occurCount = np.unique(t['group'], return_index = True,return_counts=True)
-#                     # c_mat[init_list.index(init)][seed, K_list.index(K)] = occurCount.dot((T-1 -t['changepoint'])[np.s_[indicesList]])/(N*T)*np.log(np.sum(T-1 -t['changepoint']))
-#                     pkl_file.close()
-#                     Kl_mat[init_list.index(init)][seed, K_list.index(K)], c_mat[init_list.index(init)][seed, K_list.index(K)]=uti.paramInIC(t, N, K, T)
-#         else:
-#             loss_mat[init_list.index(init)] = np.zeros([M, 1])
-#             Kl_mat[init_list.index(init)] = np.zeros([M, 1])
-#             c_mat[init_list.index(init)] = np.zeros([M, 1])
-#             for seed in range(M):
-#                 setpath(trans_setting, K = 3, init=init)
-#                 file_name = "seed_"+str(seed)+".dat"
-#                 pkl_file = open(file_name, 'rb')
-#                 t = pickle.load(pkl_file)
-#                 # ic_list[K_list.index(K)] = uti.IC(t['loss'], t['changepoint'], 
-#                 #                               t['group'], N, T, K, C)
-#                 # loss = mean_detect.goodnessofClustering(States, N, T, 3, t['changepoint'], Actions, t['group'])
-#                 loss_mat[init_list.index(init)][seed, 0] = t['loss'] #/ np.mean(T - t['changepoint'] - 1)
-#                 # Kl_mat[init_list.index(init)][seed, 0] =  K*np.log(np.sum(T-1 -t['changepoint']))
-#                 # Ck, indicesList, occurCount = np.unique(t['group'], return_index = True,return_counts=True)
-#                 # c_mat[init_list.index(init)][seed, 0] = occurCount.dot((T-1 -t['changepoint'])[np.s_[indicesList]])/(N*T)*np.log(np.sum(T-1 -t['changepoint']))
-#                 pkl_file.close()
-#                 Kl_mat[init_list.index(init)][seed, 0],c_mat[init_list.index(init)][seed, 0] = uti.paramInIC(t, N, 3, T)
-
-
-
-#     res_diffC_all = [None] * len(C_list)
-#     for C in C_list:
-#         init_count = np.zeros(len(init_list))
-#         K_count = np.zeros(len(K_list))
-#         bestK_list = np.zeros(M)
-#         changepoint_err_list = []
-#         cluster_err_list= []
-#         iter_num =[]
-#         for seed in range(M):
-#             # print('seed', seed)
-#             for init in init_list:
-#                 # print('====init:', init,"====")
-#                 if init == "randomclustering":
-#                     # print('loss_mat[',init_list.index(init),'][seed, :]',loss_mat[init_list.index(init)][seed, :], 'Kl', Kl_mat[init_list.index(init)][seed, :] ,'cmat', c_mat[init_list.index(init)][seed,:]*C)
-#                     # for C in np.arange(10.433, 10.44, 0.00001):
-#                         # print('====C',C,"=====")
-#                         # print(loss_mat[init_list.index(init)][seed, :] - Kl_mat[init_list.index(init)][seed, :] + c_mat[init_list.index(init)][seed,:]*C)
-#                         # print('**maxK', K_list[np.argmax(loss_mat[init_list.index(init)][seed, :] - Kl_mat[init_list.index(init)][seed, :] + c_mat[init_list.index(init)][seed,:]*C)])
-#                     # loss_mat[init_list.index(init)][seed, :] - Kl_mat[init_list.index(init)][seed, :] + c_mat[init_list.index(init)][seed,:]*C
-#                     ic_list[init_list.index(init)] = loss_mat[init_list.index(init)][seed, :] - Kl_mat[init_list.index(init)][seed, :] + c_mat[init_list.index(init)][seed,:]*C
-#                     clusterK = K_list[np.argmax(ic_list[init_list.index('randomclustering')])]
-#                     # print('ic_list[init_list.index("randomclustering")]',ic_list[init_list.index('randomclustering')])
-#                     ic_list[init_list.index('randomclustering')] = np.max(ic_list[init_list.index('randomclustering')])
-#                 else:    
-#                     # print('loss_mat[',init_list.index(init),'][seed, :]',loss_mat[init_list.index(init)][seed, :], 'Kl', Kl_mat[init_list.index(init)][seed, :] ,'cmat', c_mat[init_list.index(init)][seed,:]*C)
-#                     ic_list[init_list.index(init)] = (loss_mat[init_list.index(init)][seed, :] - Kl_mat[init_list.index(init)][seed, :] + c_mat[init_list.index(init)][seed,:]*C)[0]
-#             # print('ic_list' ,ic_list)
-#             init = init_list[np.where(ic_list == np.max(ic_list))[0][0]]
-#             init_count[np.where(ic_list == np.max(ic_list))[0][0]] = init_count[np.where(ic_list == np.max(ic_list))[0][0]] + 1
-#             if init == "randomclustering":
-#                 bestK = clusterK
-#             else:
-#                 bestK = 3
-#             K_count[K_list.index(bestK)] = K_count[K_list.index(bestK)] +1
-#             # print('**** init', init, 'K', bestK)
-#             # bestK = K_list[np.where(ic_list == np.max(ic_list))[1][0]]
-#             bestK_list[seed]=bestK
-#             setpath(trans_setting, K = bestK, init=init)
-#             file_name = "seed_"+str(seed)+".dat"
-#             pkl_file = open(file_name, 'rb')
-#             t = pickle.load(pkl_file)
-#             print(t['changepoint'])
-#             changepoint_err, cluster_err = evaluate(changepoints_true.squeeze(), t['group'].squeeze(),
-#                                                     t['changepoint'].squeeze(), N, T)
-#             changepoint_err_list.append(changepoint_err)
-#             # print('cp_err_best', changepoint_err, "ARI", cluster_err)
-#             cluster_err_list.append(cluster_err)
-#             iter_num.append(t['iter_num'])
-#             pkl_file.close()
-            
-#         res_diffC_all[C_list.index(C)] = {"C":C,
-#                                       "changepoint_err": np.mean(changepoint_err_list),
-#                                       "ARI": np.mean(cluster_err_list),
-#                                       "iter_num":np.mean(iter_num),
-#                                       "bestK":np.mean(bestK_list),
-#                                       "cp_var":np.std(changepoint_err_list)/np.sqrt(M),
-#                                       'cluster_var':np.std(cluster_err_list)/np.sqrt(M),
-#                                       'iter_num_var':np.std(iter_num)/np.sqrt(M),
-#                                       'bestK_var':np.std(bestK_list)/np.sqrt(M),
-#                                       "init_count":init_count,
-#                                       "K_count":K_count}
-
+#%% threshold in changepoint deteciton estimation
+def estimate_threshold(N, kappa, df, nthread=3, B = 5000, alpha = 0.01, seed=None):
+    def run_one_normal(X, u):
+        # np.random.seed(seed)
+        mu1 = np.mean(X[:, :u, :], axis = (0,1))
+        mu2 = np.mean(X[:, u:, :], axis = (0,1))
+        stat = u*(kappa-u)/(kappa**2)*np.linalg.norm(mu1 - mu2, ord=2)**2
+        return stat
+    np.random.seed(seed)
+    mean = np.zeros(df)
+    cov = np.eye(df)
+    X_list = np.random.multivariate_normal(mean, cov, size = [N,kappa,B])
+    sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(X_list[:, :, i,: ], u) for i in range(B) 
+                                           for u in range(kappa-1, 0, -1))
+    sample_stat = np.max(np.array(sample_stat).reshape([B, -1]), axis = 1)
+    threshold = np.percentile(sample_stat, (1 - alpha)*100)
+    return threshold
 
 #%% time series clustering
 from dtaidistance import dtw
 from scipy.cluster.hierarchy import single, complete, average, ward, fcluster
+import pandas as pd
 # from scipy.cluster.hierarchy import fcluster
 # import pandas as pd
 def my_hierachy(States, K, distance_metric='correlation', linkage = "average"):
