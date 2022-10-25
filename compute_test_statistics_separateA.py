@@ -1,6 +1,7 @@
 '''
 Compute the test statistic proposed in change point detection.
 Fit distinct models for Q function approximation for different actions
+! NOTE: asssum 2 actions, i.e, nactions=2
 '''
 
 # Import required libraries
@@ -27,7 +28,8 @@ class q_learning():
     Q Function approximation via polynomial regression.
     """
     def __init__(self, States, Rewards, Actions, qmodel='rbf', degree=2,
-                 gamma=0.95, rbf_dim=5, rbf_bw=1.0, n_actions=None, centered=False, RBFSampler_random_state=1):
+                 gamma=0.95, rbf_dim=5, rbf_bw=1.0, n_actions=2, centered=False, 
+                 RBFSampler_random_state=1, States_next = None):
         '''
         initialization
         :param env: an object of RLenv
@@ -69,6 +71,10 @@ class q_learning():
         self.States = States
         self.Rewards = Rewards
         self.Actions = Actions
+        
+        self.States_next = States_next
+        # self.Rewards_next = Rewards_next
+        # self.Actions_next = Actions_next
         # number of unique actions
         if n_actions is None:
             self.n_actions = len(np.unique(Actions))
@@ -93,10 +99,14 @@ class q_learning():
 
         # create design matrix for the current states
         # print(self.featurize)
-        # print('=====States0====')
         self.States0 = self.create_design_matrix(States, Actions, type='current', pseudo_actions=None)
         ## create design matrix for the next states
-        self.States1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=0)
+        if States_next is None:
+            self.States1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=0)
+        else:
+            self.States1 = self.create_design_matrix(States_next, Actions, type='next', pseudo_actions=0)
+
+        # print(len(self.States1), ', ',   self.n_actions)
         # self.States1_action1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=1)
 
         # create a list of vectors of rewards
@@ -154,39 +164,49 @@ class q_learning():
         '''
         if type == 'current':
             # stack the states by person, and time: S11, ..., S1T, S21, ..., S2T
-            States_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
-            # print(States_stack.shape)
+            if self.States_next is None:
+                States_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
+            else:
+                States_stack = States[:, :, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
             Actions_stack = Actions.flatten()
-            # n_actions = len(np.unique(Actions))
-            features = [None for a in range(self.n_actions)]
-            for a in range(self.n_actions):
-                # print('a',a,'n_actions',self.n_actions)
+            n_actions = self.n_actions #len(np.unique(Actions))
+            features = [None for a in range(n_actions)]
+            for a in np.unique(Actions_stack):
+                a = int(a)
                 action_index = np.where(Actions_stack == a)[0]
-                if len(action_index) > 0:
-                    features[a] = States_stack[np.where(Actions_stack == a)[0],:]
-                    features[a] = self.featurize_state(features[a])
-                    # print('features[a]',features[a])
-            
+                features[a] = States_stack[np.where(Actions_stack == a)[0],:]
+                features[a] = self.featurize_state(features[a])
         elif type == 'next':
-            States_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
+            if self.States_next is None:
+                States_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
+            else:
+                States_stack = States[:, :, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
             if pseudo_actions is not None:
+                # print('sudo')
                 # Actions_stack = np.repeat(pseudo_actions, States_stack.shape[0])
                 # features = [None for a in range(self.n_actions)]
                 # features[pseudo_actions] = States_stack
                 features = [States_stack]
+                # print('len(features)',len(features),', shape States[:,1;,:]', States[:, 1:, :].shape, ', shape stack: ',  States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).shape)
                 for a in range(len(features)):
+                    # if len(action_index) > 1:
+                    a = int(a)
                     features[a] = self.featurize_state(features[a])
+                    # else:
+                    #     features[0] = self.featurize_state(features[0])
             else:
                 Actions_stack = Actions.flatten()
                 features = [None for a in range(self.n_actions)]
-                for a in range(self.n_actions):
+                for a in np.unique(Actions_stack):
+                    a = int(a)
+                    # print('a', a)
                     action_index = np.where(Actions_stack == a)[0]
-                    if len(action_index) > 0:
-                        features[a] = States_stack[np.where(Actions_stack == a)[0], :]
-                        features[a] = self.featurize_state(features[a])
-
-        # for a in range(len(features)):
-        #     features[a] = self.featurize_state(features[a])
+                    # if len(action_index) > 0:
+                        # print('len(action_index)>0')
+                    features[a] = States_stack[np.where(Actions_stack == a)[0], :]
+                    features[a] = self.featurize_state(features[a])
+                # for a in range(len(features)):
+    #     features[a] = self.featurize_state(features[a])
         return features
 
 
@@ -199,14 +219,21 @@ class q_learning():
         # initialize parameter theta
         if model is None:
             if self.qmodel == "rbf" or self.qmodel == "polynomial":
-                for a in range(self.n_actions):
+                for a in np.unique(self.Actions):
+                    a = int(a)
+                    # if self.States0[a] is not None:
                     self.q_function_list[a] = LinearRegression(fit_intercept = False)
                     self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
+                    # q.q_function_list[a] = LinearRegression(fit_intercept = False)
+                    # q.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
+
                 # self.model = LinearRegression(fit_intercept = False)
                 # self.model.fit(self.States0, self.Rewards_vec)
         else:
             self.model = model
-            for a in range(self.n_actions):
+            for a in np.unique(self.Actions):
+                # if self.States0[a] is not None:
+                a = int(a)
                 self.q_function_list[a] = copy(model)
                 # self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[a])
 
@@ -215,7 +242,9 @@ class q_learning():
                 self.model.coef_
             except: # if not initialized
                 # self.model.fit(self.States0, self.Rewards_vec)
-                for a in range(self.n_actions):
+                for a in np.unique(self.Actions):
+                    # if self.States0[a] is not None:
+                    a = int(a)
                     self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
 
         ## FQI
@@ -224,12 +253,12 @@ class q_learning():
         # loss = []
         predicted_old = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
         predicted = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
-        q_function_list_path =[None] * int(max_iter/10+1)
-        # print('int(max_iter/10)',int(max_iter/10+1))
         while err > tol and num_iter <= max_iter:
-         
+
             Q_max = np.ones(shape = self.Rewards_vec.shape) * (-999)
-            for a in range(self.n_actions):
+            for a in np.unique(self.Actions):
+                a = int(a)
+                # if self.States0[a] is not None:
                 # predict the Q value for the next time and find out the maximum Q values for each episode
                 Q_max = np.maximum(self.q_function_list[a].predict(self.States1[0]), Q_max)
 
@@ -237,14 +266,12 @@ class q_learning():
             td_target = self.Rewards_vec + self.gamma * Q_max
             # update parameter fit
             err = 0.0
-            for a in range(self.n_actions):
+            for a in np.unique(self.Actions):
+                a = int(a)
+                # if self.States0[a] is not None:
                 self.q_function_list[a].fit(self.States0[a], td_target[self.action_indices[a]])
                 predicted[a] = self.q_function_list[a].predict(self.States0[a])
                 err += sum((predicted[a] - predicted_old[a])**2)
-            if divmod(num_iter, 10)[1] ==0:
-                # print('num_iter',num_iter,'div',divmod(num_iter, 10))
-                q_function_list_path[divmod(num_iter, 10)[0]] = self.q_function_list
-                
             err = np.sqrt(err)
             errors.append(err)
             predicted_old = copy(predicted)
@@ -254,27 +281,30 @@ class q_learning():
             # break if exceeds the max number of iterations allowed
             if num_iter > max_iter:
                 convergence = False
-                # print('not converge')
                 break
 
         ## calculate TD error
         predicted = np.zeros(shape=self.Rewards_vec.shape)
-        for a in range(self.n_actions):
+        for a in np.unique(self.Actions):
+            a = int(a)
+            # if self.States0[a] is not None:
             predicted[self.action_indices[a]] = self.q_function_list[a].predict(self.States0[a])
         Q_max = np.ones(shape=self.Rewards_vec.shape) * (-999)
         # obtain the optimal actions at S_t+1
         opt_action = np.zeros(shape=self.Rewards_vec.shape, dtype='int32')
-        for a in range(self.n_actions):
+        for a in np.unique(self.Actions):
+            a = int(a)
+            # if self.States0[a] is not None:
             # predict the Q value for the next time and find out the maximum Q values for each episode
             Q_a = self.q_function_list[a].predict(self.States1[0])
-            # should we update the optimal action?
+        # should we update the optimal action?
             better_action_indices = np.where(Q_a > Q_max)
             opt_action[better_action_indices] = a
             Q_max[better_action_indices] = Q_a[better_action_indices]
             # Q_max = np.maximum(Q_a, Q_max)
 
         td_error = self.Rewards_vec + self.gamma * Q_max - predicted
-        self.q_function_list_path = q_function_list_path
+
         ## calculate W matrix
         # create design matrix for the states under the optimal actions
 
@@ -288,9 +318,9 @@ class q_learning():
         #     W_mat += self.States0[a].T.dot(self.States0[a] - self.gamma * optimal_design_matrix_list[a]) / self.T
         # W_mat = self.States0.T.dot(self.States0 - self.gamma * optimal_design_matrix) / self.T
 
-        FQI_result = namedtuple("beta", ["q_function_list", "design_matrix", 'Qmodel', 'q_function_list_path'])
+        FQI_result = namedtuple("beta", ["q_function_list", "design_matrix", 'Qmodel'])
         return FQI_result(self.q_function_list, self.States0,
-                          [errors, num_iter, convergence], q_function_list_path)
+                          [errors, num_iter, convergence])
 
 
     def optimal(self):
@@ -298,7 +328,9 @@ class q_learning():
         design_matrix0 = self.create_design_matrix(self.States, Actions0, type='current', pseudo_actions=None)
         opt_reward = np.ones(shape=(Actions0.shape[0] * Actions0.shape[1], 1)) * (-999)
         opt_action = np.zeros(shape = self.Actions.shape, dtype = 'int32')
-        for a in range(self.n_actions):
+        for a in np.unique(self.Actions):
+            a = int(a)
+            # if self.States0[a] is not None:
             q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
             # should we update the optimal action?
             better_action_indices = np.where(q_estimated0_a > opt_reward)
@@ -317,33 +349,7 @@ class q_learning():
         return optimal(opt_reward, opt_action)
 
 
-    def predict(self, States, path_index = None):
-        if path_index is None:
-            N = States.shape[0]
-            T = States.shape[1] - 1
-            Actions0 = np.zeros(shape=(N,T), dtype='int32')
-            # print("States =", States)
-            # print("Actions0 =", Actions0)
-            design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
-            # print("design_matrix0=", design_matrix0)
-            # print(design_matrix0[0,:].toarray())
-            opt_reward = np.ones(shape = (N*T,)) * (-999)
-            opt_action = np.zeros(shape = (N*T,), dtype = 'int32')
-            for a in range(self.n_actions):
-                q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
-                # print(q_estimated0_a)
-                # should we update the optimal action?
-                better_action_indices = np.where(q_estimated0_a > opt_reward)
-                opt_action[better_action_indices] = a
-                # opt_action = np.argmax(np.vstack((opt_reward, q_estimated0_a)), axis=0)
-                opt_reward = np.maximum(opt_reward, q_estimated0_a)
-            optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
-            return optimal(opt_reward, opt_action)
-        else:
-            return self.predict_q_function_list_path(States, path_index)
-        
-
-    def predict_q_function_list_path(self, States, path_index):
+    def predict(self, States):
         N = States.shape[0]
         T = States.shape[1] - 1
         Actions0 = np.zeros(shape=(N,T), dtype='int32')
@@ -354,8 +360,10 @@ class q_learning():
         # print(design_matrix0[0,:].toarray())
         opt_reward = np.ones(shape = (N*T,)) * (-999)
         opt_action = np.zeros(shape = (N*T,), dtype = 'int32')
-        for a in range(self.n_actions):
-            q_estimated0_a = self.q_function_list_path[path_index][a].predict(design_matrix0[0])
+        for a in np.unique(self.Actions):
+            a = int(a)
+            # if self.States0[a] is not None:
+            q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
             # print(q_estimated0_a)
             # should we update the optimal action?
             better_action_indices = np.where(q_estimated0_a > opt_reward)
@@ -364,6 +372,7 @@ class q_learning():
             opt_reward = np.maximum(opt_reward, q_estimated0_a)
         optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
         return optimal(opt_reward, opt_action)
+
 #%%
 def split_train_test(n, fold = 5):
     '''
