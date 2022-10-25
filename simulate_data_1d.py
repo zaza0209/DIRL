@@ -56,7 +56,8 @@ class simulate_data():
                     + coef[0][3] * self.St * (2.0 * self.At - 1.0) + coef[0][0] 
                     + np.random.normal(mean, cov, 1))
         elif t >= self.Td2:
-            # print('>t',t,'self.Td2:',self.Td2)
+            print('>t',t,'self.Td2:',self.Td2)
+            print(coef[1])
             # print("t>Td2")
             # tmp =(coef[1][1] *self.St + coef[1][2] * (2.0 * self.At - 1.0) 
             #         + coef[1][3] * self.St * (2.0 * self.At - 1.0) 

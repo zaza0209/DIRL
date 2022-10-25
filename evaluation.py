@@ -44,45 +44,80 @@ def gaussian_rbf_distance(x1, x2, bandwidth = 1.0):
 
 
 
-def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 1.0,
+def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis = 0, bandwidth = 1.0,
           qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4, metric = 'ls'):
 
-    n_actions = len(np.unique(Actions))
+    # n_actions = len(np.unique(Actions_input))
     #%% training
     # extract training data
-    if States.shape[0] >1:
-        States_train = np.delete(States, (test_index), axis=0)
-        Rewards_train = np.delete(Rewards, (test_index), axis=0)
-        Actions_train = np.delete(Actions, (test_index), axis=0)
+    # test_index.sort()
+    # print('test_index, ',test_index)
+    # print('States_input[0].shape[1], ',States_input[0].shape[1])
+    if type(States_input) is not list:
+    # if States.shape[0] >4:
+        States_train = np.delete(States_input, (test_index), axis=0)
+        Rewards_train = np.delete(Rewards_input, (test_index), axis=0)
+        Actions_train = np.delete(Actions_input, (test_index), axis=0)
+        a_unique = np.unique(Actions_train)
+        q = stat.q_learning(States_train, Rewards_train, Actions_train, qmodel, num_basis, gamma, num_basis, bandwidth)
+        del States_train, Rewards_train, Actions_train
+    elif  States_input[0].shape[1] > 1:
+        # States_train_current = States[0]
+        # States_train_next = States[1]
+        States_train_current = np.delete(States_input[0], (test_index), axis=1)
+        # States_train_current = States_train_current[:, :-1 or None, :]
+        States_train_next = np.delete(States_input[1], (test_index), axis=1)
+        # States_train_next = States_train_next[:, 1:, :]
+        Rewards_train = np.delete(Rewards_input, (test_index), axis=1)
+        Actions_train = np.delete(Actions_input, (test_index), axis=1)
+        a_unique = np.unique(Actions_train)
+        q = stat.q_learning(States_train_current, Rewards_train, Actions_train, qmodel, num_basis, gamma, num_basis, bandwidth, States_next=States_train_next)
+        del States_train_current, States_train_next, Rewards_train, Actions_train
+    # print(Actions.shape)
     else:
-        States_train = np.delete(States, (test_index), axis=1)
-        Rewards_train = np.delete(Rewards, (test_index), axis=1)
-        Actions_train = np.delete(Actions, (test_index), axis=1)
-    q = stat.q_learning(States_train, Rewards_train, Actions_train, qmodel, num_basis, gamma, num_basis, bandwidth, n_actions)
-    del States_train, Rewards_train, Actions_train
+        # States_train_current = States[0]
+        # States_train_next = States[1]
+        States_train_current = np.delete(States_input[0], (test_index), axis=0)
+        # States_train_current = States_train_current[:, :-1 or None, :]
+        States_train_next = np.delete(States_input[1], (test_index), axis=0)
+        # States_train_next = States_train_next[:, 1:, :]
+        Rewards_train = np.delete(Rewards_input, (test_index), axis=0)
+        Actions_train = np.delete(Actions_input, (test_index), axis=0)
+        a_unique = np.unique(Actions_train)
+        q = stat.q_learning(States_train_current, Rewards_train, Actions_train, qmodel, num_basis, gamma, num_basis, bandwidth, States_next=States_train_next)
+        del States_train_current, States_train_next, Rewards_train, Actions_train
 
     q_function_list = q.fit(model, max_iter, tol).q_function_list
 
     # %% testing
-    if States.shape[0] >1:
-        States_test = States[test_index, :, :]
-        Rewards_test = Rewards[test_index, :]
-        Actions_test = Actions[test_index, :]
+    if type(States_input) is not list:
+    # if States.shape[0] >1:
+        States_test = States_input[test_index, :, :]
+        Rewards_test = Rewards_input[test_index, :]
+        Actions_test = Actions_input[test_index, :]
+        q1 = stat.q_learning(States_test, Rewards_test, Actions_test,
+                              qmodel, num_basis, gamma, num_basis, bandwidth)
+    elif States_input[0].shape[1] > 1:
+        States_test_current = States_input[0][:,test_index, :]
+        States_test_next = States_input[1][:,test_index, :]
+        Rewards_test = Rewards_input[:,test_index]
+        Actions_test = Actions_input[:,test_index]
+        q1 = stat.q_learning(States_test_current, Rewards_test, Actions_test,
+                              qmodel, num_basis, gamma, num_basis, bandwidth, States_next =States_test_next)
+
     else:
-        States_test = States[:,test_index + [test_index[-1]+1], :]
-        Rewards_test = Rewards[:,test_index]
-        Actions_test = Actions[:,test_index]
-    
-    # States=States_test
-    # Rewards=Rewards_test
-    # Actions=Actions_test
-    # print('n_actions',n_actions)
-    q1 = stat.q_learning(States_test, Rewards_test, Actions_test,
-                          qmodel, num_basis, gamma, num_basis, bandwidth, n_actions=n_actions)
+        States_test_current = States_input[0][test_index, :, :]
+        States_test_next = States_input[1][test_index,:, :]
+        Rewards_test = Rewards_input[test_index, :]
+        Actions_test = Actions_input[test_index, :]
+        q1 = stat.q_learning(States_test_current, Rewards_test, Actions_test,
+                              qmodel, num_basis, gamma, num_basis, bandwidth, States_next =States_test_next)
 
     # predict the Q value for the next time and find out the maximum Q values for each episode
     Q_max = np.ones(shape=q1.Rewards_vec.shape) * (-999)
-    for a in range(n_actions):
+    for a in a_unique:
+        # print(a)
+        a = int(a)
         # predict the Q value for the next time and find out the maximum Q values for each episode
         Q_max = np.maximum(q_function_list[a].predict(q1.States1[0]), Q_max)
     # Q_max = np.asarray([model.predict(q1.States1_action0),
@@ -99,7 +134,11 @@ def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 
         # print("q_function_list[",a,"] =",q_function_list[a])
         # print("q1.States0[",a,"] =",q1.States0[a])
         # a_q1=np.where(np.unique(q1.Actions) == a)[0].item()
-        predicted_q_current[q1.action_indices[int(a)]] = q_function_list[int(a)].predict(q1.States0[int(a)])
+        # print('q1.States0[int(',a,')]',q1.States0[int(a)].shape, 'q1.States0[int(a)]',q1.States0[int(a)].shape)
+        # print('q_function_list[int(a)]', q_function_list[int(a)])
+        # if len(q1.States0[int(a)] )>0:
+        if a in a_unique:
+            predicted_q_current[q1.action_indices[int(a)]] = q_function_list[int(a)].predict(q1.States0[int(a)])
     tde = Rewards_test.flatten() + gamma * Q_max - predicted_q_current
     if metric == 'kerneldist':
         def distance_function_state(x1,x2):
@@ -108,9 +147,17 @@ def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 
             return abs(x1 - x2)
         def tde_product(x1, x2):
             return x1 * x2
-
-        States_stack = States[test_index, :-1, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T
-        Actions_vec = Actions[test_index, :].flatten()
+        if type(States_input) is not list:
+        # if States.shape[0] >1:
+            States_stack = States_input[test_index, :-1, :].transpose(2, 0, 1).reshape(States_input.shape[2], -1).T
+        # else:
+        elif States_input[0].shape[1] > 1:
+            States_stack = States_input[0][:,test_index, :].reshape((-1,1))#.transpose(2, 0, 1).reshape(States.shape[2], -1).T
+        else:
+            States_stack = States_input[0][test_index,:, :].reshape((-1,1))
+        # print('Actions.shape', Actions.shape)
+        # Actions_vec = Actions[test_index, :].flatten()
+        Actions_vec = Actions_test.flatten()
         K_states = pdist(States_stack, metric=distance_function_state)
         K_actions = pdist(Actions_vec.reshape(-1, 1), metric=distance_function_action)
         tdes = pdist(tde.reshape(-1, 1), metric=tde_product)
@@ -121,7 +168,7 @@ def train_test(States, Rewards, Actions, test_index, num_basis = 0, bandwidth = 
         # compute TD target
         # get the mse of the least square loss in the last iteration
         K_total = np.mean(tde ** 2)
-
+#%%
     return K_total
 
 
@@ -191,19 +238,54 @@ def train_test_kernel(States, Rewards, Actions, test_index, sampled_time_points,
     #
     # return loss
 
-
-
 def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
                     qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4,
                     nfold = 2, num_threads = 3,
                     metric = 'ls', num_basis = 1, verbose=False,
                     kernel_regression=False, sampled_time_points=None):
-    if States.shape[0] > 1:
-        N = Rewards.shape[0]
+    if len(States.shape) == 2:
+        States = States.reshape((1, States.shape[0], -1))
+    # print('Actions.shape', Actions.shape)
+    # if  Actions.shape[1]  == 1:
+    #     Actions = Actions.reshape((1,-1))
+    #     # print('Actions.shape', Actions.shape)
+    # if Rewards.shape[1] == 1:
+    #     Rewards = Rewards.reshape((1,-1))
+    if States.shape[0] > 4: # split on N
+        N = States.shape[0]
         test_indices = list(split_train_test(N, nfold))
-    else: # individual policy learning
+        States_input=States
+        Actions_input =Actions
+        Rewards_input = Rewards
+    elif Rewards.shape[1] > nfold * 2: # split on T
+        print('cv 2')
         T = Rewards.shape[1]
-        test_indices = list(split_train_test(T, nfold, random=False))
+        test_indices = list(split_train_test(T, nfold))
+        States_current = States[:,:-1,:].copy()
+        States_next = States[:,1:,:].copy()
+        States_input=[States_current, States_next]
+        Actions_input =Actions
+        Rewards_input = Rewards
+    else: # split on NT
+        print('cv 3')
+        States_current_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, 1))
+        States_next_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, 1))
+        Actions_stack = (Actions.flatten()).reshape([-1, 1])
+        Rewards_stack = (Rewards.flatten()).reshape([-1, 1])
+        NT = Actions_stack.shape[0]
+        if NT > nfold*2:
+            test_indices = list(split_train_test(NT, nfold))
+            States_input=[States_current_stack, States_next_stack]
+            Actions_input = Actions_stack
+            Rewards_input = Rewards_stack
+        else:
+            nfold = int(NT/2)
+            test_indices = list(split_train_test(NT, nfold))
+            States_input=[States_current_stack, States_next_stack]
+            print('States_current_stack.shape',States_current_stack.shape)
+            Actions_input = Actions_stack
+            Rewards_input = Rewards_stack
+    # print('Actions.shape', Actions.shape)
         # test_index=test_indices[fold]
     # if N > 50:
     #     num_threads = 1
@@ -255,12 +337,12 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
         if not kernel_regression: # regular FQI
             # print("regular")
             def run_one(fold):
-                return train_test(States, Rewards, Actions, test_index=test_indices[fold], num_basis=num_basis, bandwidth=1,
+                return train_test(States_input, Rewards_input, Actions_input, test_index=test_indices[fold], num_basis=num_basis, bandwidth=1,
                            qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
         else:
             # print("kernel")
             def run_one(fold):
-                return train_test_kernel(States, Rewards, Actions, test_indices[fold], sampled_time_points, num_basis=num_basis, bandwidth=bandwidth,
+                return train_test_kernel(States_input, Rewards_input, Actions_input, test_indices[fold], sampled_time_points, num_basis=num_basis, bandwidth=bandwidth,
                            qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
             
         # parallel jobs

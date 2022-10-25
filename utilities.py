@@ -2,13 +2,16 @@
 from joblib import Parallel, delayed
 import numpy as np
 #%% IC
-def h_in_IC(changepoints,T):
+def h_in_IC(changepoints,T, h = '1'):
     '''
     The bonus term for changepoints location in IC
     '''
-    return (np.sum(T-1 -changepoints)/np.log(np.sum(T-1 - changepoints)))
+    if h == '1':
+        return (np.sum(T-1 -changepoints)/np.log(np.sum(T-1 - changepoints)))
+    elif h == 'sqrt':
+        return (np.sqrt(np.sum(T-1 -changepoints)/np.log(np.sum(T-1 - changepoints))))
 
-def IC(loss, changepoints, g_index, N, T, K, C=10):
+def IC(loss, changepoints, g_index, N, T, K, C=10, Kl_fun='log', h='1'):
     # """
     # Information criterion
     # Parameters
@@ -18,7 +21,10 @@ def IC(loss, changepoints, g_index, N, T, K, C=10):
     # C : h(\sum \tau_i) = C \sum \tau_i/log(\sum \tau_i)
 
     # """
-    Kl = K*np.log(np.sum(T-1 -changepoints))
+    if Kl_fun == 'log':
+        Kl = K*np.log(np.sum(T-1 -changepoints))
+    elif Kl_fun == "sqrt":
+        Kl = K*np.sqrt(np.sum(T-1 -changepoints))
     # print("kl", Kl)
     Ck, indicesList, occurCount = np.unique(g_index, return_index = True,return_counts=True)
     # print("C",C)
@@ -28,7 +34,7 @@ def IC(loss, changepoints, g_index, N, T, K, C=10):
     # print('(T-1 -changepoints)[np.s_[indicesList]]',(T-1 -changepoints)[np.s_[indicesList]])
     # print('np.log(np.sum(T-1 -changepoints)',np.log(np.sum(T-1 -changepoints)))
     print("ic",loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T), ', ',K,'*l', Kl,  ', ',C,'* h=', C*occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * h_in_IC(changepoints, T))
-    return loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T)
+    return loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T, h=h)
 
 def paramInIC(model, N, K, T, include_path_loss =0):
     if not include_path_loss:
