@@ -376,7 +376,7 @@ def changemarginal_detect(g_index, States, N, T, kappa_max, kappa_min,kappa_inte
 
 def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kappa_interval, 
              epsilon, Actions=None, cusum_forward=None, cusum_backward=None, C1=None,
-        C2=None,C3=2, alpha = 0.01, df = 5, nthread=3, threshold_type="permutation", 
+        C2=None,C3=2, alpha = 0.01, df = 5, nthread=3, threshold_type="maxcusum", 
         nthread_B= None, B = 2000, is_cp_parallel=1,seed=0):
     # print('endter')
     K = len(set(g_index))
@@ -457,7 +457,7 @@ def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kapp
        cusum_tmp = -1*(logL0 - logL1)/(np.sum(g_index== k)*kappa)
        return cusum_tmp
     #%%
-    def run_k(k):
+    def run_k(k, nthread_B=nthread_B):
         for kappa in kappa_list:
             print('====== kappa',kappa)
             is_cp_found=1
