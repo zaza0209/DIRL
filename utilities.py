@@ -21,6 +21,7 @@ def IC(loss, changepoints, g_index, N, T, K, C=10, Kl_fun='log', h='1'):
     # C : h(\sum \tau_i) = C \sum \tau_i/log(\sum \tau_i)
 
     # """
+    K = len(set(g_index))
     if Kl_fun == 'log':
         Kl = K*np.log(np.sum(T-1 -changepoints))
     elif Kl_fun == "sqrt":
@@ -65,9 +66,11 @@ def estimate_threshold(N, kappa, df, nthread=3, B = 5000, alpha = 0.01, seed=Non
     np.random.seed(seed)
     mean = np.zeros(df)
     cov = np.eye(df)
-    X_list = np.random.multivariate_normal(mean, cov, size = [N,kappa,B])
-    sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(X_list[:, :, i,: ], u) for i in range(B) 
+    # X_list = np.random.multivariate_normal(mean, cov, size = [N,kappa,B])
+    sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(np.random.multivariate_normal(mean, cov, size = [N,kappa,1]), u) for i in range(B) 
                                            for u in range(kappa-1, 0, -1))
+    # sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(X_list[:, :, i,: ], u) for i in range(B) 
+    #                                        for u in range(kappa-1, 0, -1))
     sample_stat = np.max(np.array(sample_stat).reshape([B, -1]), axis = 1)
     threshold = np.percentile(sample_stat, (1 - alpha)*100)
     return threshold
