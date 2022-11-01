@@ -11,27 +11,20 @@ def h_in_IC(changepoints,T, h = '1'):
     elif h == 'sqrt':
         return (np.sqrt(np.sum(T-1 -changepoints)/np.log(np.sum(T-1 - changepoints))))
 
-def IC(loss, changepoints, g_index, N, T, K, C=10, Kl_fun='log', h='1'):
-    # """
-    # Information criterion
-    # Parameters
-    # ----------
-    # loss : TYPE
-    #     DESCRIPTION.
-    # C : h(\sum \tau_i) = C \sum \tau_i/log(\sum \tau_i)
-
-    # """
+def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun = 'no_scale', Kl_fun='logN', h='1'):
     K = len(set(g_index))
     if Kl_fun == 'log':
         Kl = K*np.log(np.sum(T-1 -changepoints))
     elif Kl_fun == "sqrt":
         Kl = K*np.sqrt(np.sum(T-1 -changepoints))
+    elif Kl_fun == 'logN':
+        Kl = K*np.log(N)
     # print("kl", Kl)
     Ck, indicesList, occurCount = np.unique(g_index, return_index = True,return_counts=True)
-    # print("C",C)
     # print('c',occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * np.log(np.sum(T-1 -changepoints)))
-    # # # print('loss', loss)
-    # print('occurCount',occurCount)
+    if loss_fun == 'no_scale':
+        loss = loss/np.mean(T-1-changepoints)
+    print('loss', loss)
     # print('(T-1 -changepoints)[np.s_[indicesList]]',(T-1 -changepoints)[np.s_[indicesList]])
     # print('np.log(np.sum(T-1 -changepoints)',np.log(np.sum(T-1 -changepoints)))
     print("ic",loss - Kl+ occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * h_in_IC(changepoints, T), ', ',K,'*l', Kl,  ', ',C,'* h=', C*occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * h_in_IC(changepoints, T))
