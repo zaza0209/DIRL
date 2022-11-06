@@ -25,7 +25,7 @@ from datetime import datetime
 # import test_stat.simulate_data_1d as sim
 from functions.simulate_data_1d_flexible import *
 from sklearn.tree import DecisionTreeRegressor
-import simu.compute_test_statistics_separateA as stat
+import functions.compute_test_statistics_separateA as stat
 from functions.evaluation import *
 import functions.simu_mean_detect as mean_detect
 # parallel jobs

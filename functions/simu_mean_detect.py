@@ -12,7 +12,7 @@ from collections import namedtuple
 from scipy.linalg import block_diag
 from scipy.stats import chi2, norm
 from joblib import Parallel, delayed
-import simu.utilities as ut
+import functions.utilities as ut
 import random
 from datetime import datetime
 # from datetime import datetime
