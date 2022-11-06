@@ -3,8 +3,8 @@
 import platform, sys, os, pickle, re
 #print('sys.path',sys.path)
 # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/results")
-sys.path.append('~/.local/lib64/python3.6/site-packages') # 引用模块的地址
-sys.path.append('/usr/lib64/python3.6/site-packages') # 引用模块的地址
+sys.path.append('~/.local/lib64/python3.6/site-packages') # òyó??￡?éμ?μ??·
+sys.path.append('/usr/lib64/python3.6/site-packages') # òyó??￡?éμ?μ??·
 import numpy as np
 sys.path.append('/home/huly0209_gmail_com/heterRL')
 import simu.simulate_data_1d as sim
@@ -36,13 +36,21 @@ startTime = datetime.now()
 # %% environment setup
 # create folder under seed if not existing
 # os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu")
-
+if effect_size == "strong":
+    effect_size_factor = 0.4
+elif effect_size == "moderate":
+    effect_size_factor = 0.35
+elif effect_size == "weak":
+    effect_size_factor = 0.25
+else:
+    effect_size_factor = int(effect_size)
+    
 def setpath(trans_setting, init = "true clustering"):
     #os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/toyexample/error")
     if not os.path.exists('results'):
         os.makedirs('results', exist_ok=True)
 
-    path_name = 'results/threshold_'+ threshold_type+'/sim_result_trans' + trans_setting +'/effect_size_' + effect_size+\
+    path_name = 'results/threshold_'+ threshold_type+'/sim_result_trans' + trans_setting +'/effect_size_samesign_sys' + str(effect_size_factor)+\
         '/N' + str(N) +'/T_' + str(T)+'_init_'+init+'_K'+ str(K)+\
                 '_1d/cov'+str(cov) + '/seed'+str(seed) 
            
@@ -90,19 +98,12 @@ nthread=3
 epsilon = 1/T
 
 # [c1 *St+ c2*(2A-1) + c3*St*(2A-1)+c0]
-if effect_size == "strong":
-    effect_size_factor = 1.0
-elif effect_size == "moderate":
-    effect_size_factor = 0.5
-elif effect_size == "weak":
-    effect_size_factor = 0.2
-else:
-    effect_size_factor = int(effect_size)
-coef =[[0,0,0,-0.5*effect_size_factor],[0,0,0,0.5*effect_size_factor]] # shift in mean
+
+coef =[[0,0,0,0.5 - effect_size_factor],[0,0,0,0.5+ effect_size_factor]] # shift in mean
 def gen_dat(N, T, K, coef, changepoint_list=None,trans_setting="pwsonst2",
             seed=1):
     if changepoint_list is None:
-        changepoint_list = [int(T/2)  + int(0.2 * T)- 1, int(T/2) - int(0.2 * T) - 1] # 如果这里为29， 那么第30个点是按照新的transition function计算的
+        changepoint_list = [int(T/2)  + int(0.2 * T)- 1, int(T/2) - int(0.2 * T) - 1] # è?1??aà??a29￡? ???′μú30??μ?ê?°′??D?μ?transition function????μ?
     print('changepoint_list',changepoint_list)
     changepoints_true = np.zeros([N, 1])
     States = np.zeros([N, T, p])
@@ -145,7 +146,7 @@ for i in range(1):
 g_index_true = np.repeat([0,1], [int(N/2),int(N/2)], axis=0)
 
 kappa_min = int((T- 1 - np.max(changepoints_true))*0.8)
-kappa_max = max(T-1, int((T- 1 - np.min(changepoints_true))*1.2))
+kappa_max = min(T-1, int((T- 1 - np.min(changepoints_true))*1.2))
 # %% evaluation function
 def evaluate(changepoints_true, g_index, predict, N, T):
     '''

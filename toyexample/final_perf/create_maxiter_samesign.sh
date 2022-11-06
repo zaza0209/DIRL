@@ -1,7 +1,7 @@
 #!/bin/bash
 cd /home/huly0209_gmail_com/heterRL/toyexample/final_2
 
-Ns=(50)
+Ns=(100)
 nthread=8
 T=50
 cov=0.25
@@ -16,12 +16,12 @@ write_slurm() {
 #SBATCH --mail-type=END,FAIL,BEGIN
 #SBATCH --mem=3g
 #SBATCH --cpus-per-task=$5
-#SBATCH --array=0-9
+#SBATCH --array=0-4
 #SBATCH -o ./reports/%x_%A_%a.out 
 
 cd /home/huly0209_gmail_com/heterRL/toyexample/final_2
 
-python3 run_maxiter.py \$SLURM_ARRAY_TASK_ID $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11}
+python3 run_maxiter_samesign.py \$SLURM_ARRAY_TASK_ID $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11}
 " > maxiter_init$1_N$2_T$3_set$4_cov$6_cp$7_K${8}_cp${10}_${11}_run.slurm
 
 if $run
@@ -33,17 +33,11 @@ fi
 random_cp_list=($(seq 1 1 5))
 
 for N in "${Ns[@]}"; do
-    for setting in "pwconst2" ; do #    "smooth"
-        for init in "tuneK_iter"; do # "kmeans" "true_clustering" "no_clusters" "random_cp""true_change_points" "no_change_points" "random_clustering" ; do # #
-           # if [[ "${init}" == "random_cp" ]]; then 
-               # for cp_index in "${random_cp_list[@]}"; do
-                #    for K in '2' ; do #'1' '3' '4'
-                 #       write_slurm ${init} ${N} ${T} ${setting} ${nthread} ${cov} ${threshold_type} ${K} ${max_iter} ${cp_index} ${effect_size}
-                  #  done
-                #done
+    for setting in "pwconst2"  ; do #   "smooth"
+        for init in "kmeans"; do #  
             for effect_size in "strong"; do #"0.4""moderate" "weak"
                 if [[ "${init}" == "kmeans" ]]; then
-                    for K in "2"  ;  do  # "1" "3"'4' "4" 
+                    for K in "2" "3" "1" '4';  do  #  
                         write_slurm ${init} ${N} ${T} ${setting} ${nthread} ${cov} ${threshold_type} ${K} ${max_iter} 0 ${effect_size}
                     done
                 else

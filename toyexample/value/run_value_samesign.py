@@ -13,10 +13,10 @@ if plat == 'Windows-10-10.0.14393-SP0': ##local
     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/toyexample/value")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31' or plat == 'Linux-3.10.0-1160.53.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core':  # biostat cluster
-    os.chdir("/home/huly/heterRL/toyexample/value")
+    os.chdir("/home/huly/heterRL/toyexample/value_samesign")
     sys.path.append("/home/huly/heterRL")
 else:
-    os.chdir("/home/huly0209_gmail_com/heterRL/toyexample/value")
+    os.chdir("/home/huly0209_gmail_com/heterRL/toyexample/value_samesign")
     sys.path.append("/home/huly0209_gmail_com/heterRL")
 
 from sklearn import tree
@@ -43,7 +43,7 @@ cov = float(sys.argv[7])
 cp_detect_interval = int(sys.argv[8])
 is_tune_parallel = int(sys.argv[9])
 is_cp_parallel= int(sys.argv[10])
-effect_size = "strong"
+effect_size = sys.argv[11]
 print('type_est', type_est)
 print('trans_setting', trans_setting)
 # seed = 10
@@ -84,6 +84,15 @@ mean = 0
 #%% environment for saving online values
 # method = ''.join([i for i in type_est if not i.isdigit()])
 # append_name =  "Tnew"+str(T_new)+ "_cov"+str(cov)
+if effect_size == "strong":
+    effect_size_factor = 0.40
+elif effect_size == "moderate":
+    effect_size_factor = 0.35
+elif effect_size == "weak":
+    effect_size_factor = 0.25
+else:
+    effect_size_factor = int(effect_size)
+
 if not os.path.exists('results'):
     print('not results')
     os.makedirs('results', exist_ok=True)
@@ -91,7 +100,7 @@ print(os.getcwd())
 # data_path = 'results/' + 'trans' + trans_setting +'_gamma' + \
 #             re.sub("\\.", "", str(gamma)) +'/N' + str(N) +'/'+ type_est + append_name+\
 #                 '/seed_'+str(seed)
-data_path = 'results/trans' + trans_setting +'/N' + str(N) +'/Tnew_' +\
+data_path = 'results/trans' + trans_setting +'/effect_size_samesign'+str(effect_size_factor)+'/N' + str(N) +'/Tnew_' +\
             str(T_new)+'_type_'+type_est+'_cpitv'+ str(cp_detect_interval)+'/cov'+str(cov) + '/seed'+str(seed) 
 if not os.path.exists(data_path):
     print('data_path', os.path.exists(data_path))
@@ -114,14 +123,6 @@ degree = 1
 
 num_threads = 1
 #%% generate data for estimating the optimal policy
-if effect_size == "strong":
-    effect_size_factor = 1.0
-elif effect_size == "moderate":
-    effect_size_factor = 0.5
-elif effect_size == "weak":
-    effect_size_factor = 0.2
-else:
-    effect_size_factor = int(effect_size)
 
 def transition_function1(St, At, t, mean=0, cov=cov):
     '''
@@ -135,7 +136,7 @@ def transition_function1(St, At, t, mean=0, cov=cov):
     # new_St = 0.5 * (2.0 * At - 1.0) * St + noise
     # print("noise =", noise)
     # print("new_St =", new_St)
-    return -0.5 * effect_size_factor * (2.0 * At - 1.0) * St
+    return (0.5 -effect_size_factor)* (2.0 * At - 1.0) * St
 
 def transition_function2(St, At, t, mean=0, cov=cov):
     '''
@@ -145,7 +146,7 @@ def transition_function2(St, At, t, mean=0, cov=cov):
     # :param t: time t
     :return: a scalar of state
     '''
-    return 0.5 * effect_size_factor * St * (2.0 * At - 1.0)
+    return (0.5+effect_size_factor) * St * (2.0 * At - 1.0)
 
 def reward_function_homo(St, At, t):
     '''
@@ -180,9 +181,9 @@ changepoints_true = np.repeat(0, N)
 g_index_true = np.repeat([0,1], int(N/2))
 system_indicator = [0,1]
 if trans_setting == "smooth":
-    changepoint_list = [int(T_initial/2)  + int(0.2 * T_initial)- 1+2, int(T_initial/2) - int(0.2 * T_initial) - 1+2] # �������Ϊ29�� ��ô��30�����ǰ����µ�transition function�����
+    changepoint_list = [int(T_initial/2)  + int(0.2 * T_initial)- 1+2, int(T_initial/2) - int(0.2 * T_initial) - 1+2] #        ?29     ?  30     ?    μ transition function     
 else:
-    changepoint_list = [int(T_initial/2)  + int(0.2 * T_initial)- 1, int(T_initial/2) - int(0.2 * T_initial) - 1] # �������Ϊ29�� ��ô��30�����ǰ����µ�transition function�����
+    changepoint_list = [int(T_initial/2)  + int(0.2 * T_initial)- 1, int(T_initial/2) - int(0.2 * T_initial) - 1] #        ?29     ?  30     ?    μ transition function     
 
 for i in range(N):
     if i < int(N/2):
@@ -295,15 +296,15 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                 States_s[:, :, i] = transform(States_s[:, :, i])
             out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:,  int(cp_current[0]):],
                                  seed = seed+batch_index, init = "changepoints", nthread=nthread,changepoints_init =cp_current, 
-                                 max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel, C=0)
+                                 max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel)
             best_out = out.best_model
             g_index = best_out[1]
 
         if method == "only_cp":
             g_index = np.repeat(0, N)
             if batch_index == 0:
-                kappa_min = 10 
-                kappa_max = 40
+                kappa_min = int((T_initial- 1 - np.max(changepoints_true))*0.8)
+                kappa_max = min(T_initial-1, int((T_initial- 1 - np.min(changepoints_true))*1.2))
             else:
                 T_length = States_updated[:, int(np.max(cp_current)):, :].shape[1] #- 1
                 kappa_min = 5
@@ -316,15 +317,17 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             out = mean_detect.fit_tuneK([1], States_s, Actions_updated[:, int(np.max(cp_current)):],
                                  seed = seed+batch_index, init = "clustering", epsilon=epsilon, nthread=nthread,
                                  kappa_min = kappa_min, kappa_max = kappa_max, max_iter=1, 
-                                 g_index_init_list=[g_index], C=0,
+                                 g_index_init_list=[g_index],
                                  is_tune_parallel=0, is_cp_parallel = is_cp_parallel)
             cp_current += out.best_model[2]
         if method == "proposed":
             # print('1')
             if batch_index == 0:
                 cp_current = np.repeat(0,N)
-                kappa_min = 10 
-                kappa_max = 49
+                # kappa_min = 10 
+                # kappa_max = 49
+                kappa_min = int((T_initial- 1 - np.max(changepoints_true))*0.8)
+                kappa_max = min(T_initial-1, int((T_initial- 1 - np.min(changepoints_true))*1.2))
             else:
                 T_length = States_updated[:, int(np.max(cp_current)):, :].shape[1] #- 1
                 kappa_min = 5
@@ -340,7 +343,7 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                                      seed = seed, init = "clustering", epsilon=epsilon, nthread=nthread,
                                      kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
                                      init_cluster_range = T_length-1-kappa_min, 
-                                     is_cp_parallel=is_cp_parallel, C=0,
+                                     is_cp_parallel=is_cp_parallel,
                                      is_tune_parallel=is_tune_parallel)
                 print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
                 best_out = out.best_model
@@ -348,9 +351,6 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                 cp_current = np.repeat(int(np.max(cp_current)), N)+ best_out[2] #change_point_detected['integral_emp']
                 g_index = best_out[1]
                 print('system_indicator',system_indicator)
-                with open('interdata_batch'+str(batch_index)+'.dat' , "wb") as f:
-                    pickle.dump({'States':States_s,
-                                  'Actions':Actions_updated[:, int(np.max(cp_current)):]}, f)
             except:
                 print('!!! BUG in mean_detect')
                 with open('bugdata.dat' , "wb") as f:

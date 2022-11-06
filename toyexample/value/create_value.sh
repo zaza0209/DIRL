@@ -11,16 +11,15 @@ cp_detect_interval=25
 is_tune_parallel=1
 is_cp_parallel=1
 run=true
-
 # 1: type 2: N, 3: T_new, 4: setting, 5: nthread, 6:cov, 7: cp_detect_interval, 8: is_tune_parallel, 9: is_cp_parallel
 write_slurm() {
     echo "#!/bin/bash
-#SBATCH --job-name=va_$4_$1
-#SBATCH --time=04:00:00
+#SBATCH --job-name=va_$1_$4_cp$7
+#SBATCH --time=100:00:00
 #SBATCH --mail-type=END,FAIL,BEGIN
 #SBATCH --mem=3g
 #SBATCH --cpus-per-task=$5
-#SBATCH --array=0-2
+#SBATCH --array=0-5
 #SBATCH -o ./reports/%x_%A_%a.out 
 
 cd /home/huly0209_gmail_com/heterRL/toyexample/value
@@ -35,11 +34,11 @@ fi
 
 
 for N in "${Ns[@]}"; do
-    for type in 'only_cp' "only_clusters" "proposed""oracle" "overall"; do # ; do 
-        for setting in "pwconst2"; do
-             write_slurm ${type} ${N} ${T_new} ${setting} ${nthread} ${cov} ${cp_detect_interval} ${is_tune_parallel} ${is_cp_parallel}
+    for type in "proposed" "overall" "oracle"   ; do # "only_clusters" "only_cp" ; do  
+        for setting in "pwconst2"; do # "smooth"
+             write_slurm ${type} ${N} ${T_new} ${setting} ${nthread} ${cov} ${cp_detect_interval} ${is_tune_parallel} ${is_cp_parallel} 
          done
-    done
+    done 
 done
 	
 
