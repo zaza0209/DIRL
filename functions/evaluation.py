@@ -8,7 +8,7 @@ import numpy as np
 # from collections import namedtuple
 from joblib import Parallel, delayed
 sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") # 引用模块的地址
-import simu.compute_test_statistics_separateA as stat
+import functions.compute_test_statistics_separateA as stat
 from itertools import product
 from copy import copy
 from random import sample
