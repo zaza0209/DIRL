@@ -44,4 +44,4 @@ This repository contains the implementation for the paper "Doubly Non-homogeneou
         bash create_value.samesign.sh
         ```
    
-    - Folder `output` contains raw results and corresponding figures of the simulation in the paper.
+- Folder `output` contains raw results and corresponding figures of the simulation in the paper.
