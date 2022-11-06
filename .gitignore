@@ -1,1 +1,3 @@
 results/
+.pyproject
+__pycache__
