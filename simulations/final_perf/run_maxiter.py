@@ -72,7 +72,7 @@ mean = 0
 
 # width of smooth transition function
 w = 0.01
-delta = 0.05#1/T
+delta = 0.05
 
 # cluster number
 # K = 2
