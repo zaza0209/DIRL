@@ -1,4 +1,4 @@
-# Doubly Non-homogeneous Reinforcement Learning
+# Doubly Inhomogeneous Reinforcement Learning
 
 This repository contains the implementation for the paper "Doubly Non-homogeneous Reinforcement Learning" in Python (and R for plotting).
 
