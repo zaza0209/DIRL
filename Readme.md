@@ -1,6 +1,6 @@
 # Doubly Inhomogeneous Reinforcement Learning
 
-This repository contains the implementation for the paper "Doubly Non-homogeneous Reinforcement Learning" in Python (and R for plotting). The main challenge lies in that not only each subject can have their own system dynamics, but the system dynamics may evolve over time for each subject. In this work, we assume that at each time point, subjects can be grouped into clusters defined by their system dynamics. We provide some concrete examples  with two subjects and a single change point (including merge, split, promotion, evolution, etc.) to elaborate.
+This repository contains the implementation for the paper "Doubly Non-homogeneous Reinforcement Learning" in Python (and R for plotting). The main challenge lies in that not only each subject can have their own system dynamics, but the system dynamics may evolve over time for each subject. In this work, we assume that at each time point, subjects can be grouped into clusters defined by their system dynamics. We provide some concrete examples  with two subjects and a single change point (including **merge**, **split**, **promotion**, **evolution**, etc.) to elaborate.
 
 
 <img align="center" src="BuildingBlock.png" alt="drawing" width="800">
