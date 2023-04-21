@@ -743,8 +743,8 @@ def changepointsNclustering(example, clustering, changepoint_detect, States,Acti
     if changepoint_init_indi == 1:
         g_index_0 = np.arange(0, N)
     else:
-        g_index_0 = np.zeros([0, N])
-        
+        g_index_0 = np.zeros([N])
+
     if changepoints_init is None:
         out = changepoint_detect(g_index = g_index_0,States=States, N=N, T=T,
                                  kappa_max=kappa_max, kappa_min=kappa_min, kappa_interval=kappa_interval,
