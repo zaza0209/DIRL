@@ -13,6 +13,7 @@ def h_in_IC(changepoints,T, h = '1'):
 
 def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun = 'no_scale', Kl_fun='logN', h='1'):
     K = len(set(g_index))
+    # print("Kl_fun = ", Kl_fun)
     if Kl_fun == 'log':
         Kl = K*np.log(np.sum(T-1 -changepoints))
     elif Kl_fun == "sqrt":
