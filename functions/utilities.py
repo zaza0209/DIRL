@@ -69,7 +69,8 @@ def estimate_threshold(N, kappa, df, nthread=3, B = 5000, alpha = 0.01, seed=Non
                                                 for u in range(kappa-1, 0, -1))
     sample_stat = np.max(np.array(sample_stat).reshape([B, -1]), axis = 1)
     threshold = np.percentile(sample_stat, (1 - alpha)*100)
-    return threshold
+    # print("good")
+    return threshold, sample_stat
 
 #%% time series clustering
 from dtaidistance import dtw
