@@ -483,6 +483,8 @@ def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kapp
     #%%
     def run_k(k, nthread_B=nthread_B):
         p_values_by_kappa = []
+        # indicate whether we have encountered the first cp
+        first_cp = 1
         for kappa in kappa_list:
             # print('int(2 * epsilon * T)',int(2 * epsilon * T))
             # print('kappa', kappa)
@@ -555,8 +557,10 @@ def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kapp
                     tau = T-1-kappa_list[np.where(kappa_list == kappa)[0][0] - 1]
             if is_cp_found:
                 # print('!!!!!!! found!!!! tauk[k]',tau)
-                tau_final = tau
-                p_value_final = p_value
+                if first_cp:
+                    tau_final = tau
+                    p_value_final = p_value
+                first_cp = 0
                 if break_early:
                     break
         return [tau_final, p_value_final, p_values_by_kappa]
