@@ -13,7 +13,7 @@ num_threads=multiprocessing.cpu_count()
 os.chdir("C:/Users/test/Dropbox/DIRL/IHS/simu/simu_original/tuneK_iterations")
 
 M=6
-init_list = ['tuneK_iter', 'kmeans']
+init_list = ['K2']#, 'kmeans']
 N = 50
 T = 50
 trans_setting = 'pwconst2'

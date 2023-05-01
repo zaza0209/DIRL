@@ -4,26 +4,37 @@ Test the performance of tuning K in each iteration
 """
 #!/usr/bin/python
 import platform, sys, os, pickle, re
-os.chdir("C:/Users/test/Dropbox/DIRL/IHS/simu/simu_original")
+plat = platform.platform()
+print(plat)
+if plat == 'Windows-10-10.0.14393-SP0': ##local
+    os.chdir("C:/Users/test/Dropbox/DIRL/IHS/simu/simu/tuneK_iterations/final_perf")
+    sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
+    os.chdir("/home/huly/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/huly/heterRL")
+else:
+    os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/huly0209_gmail_com/heterRL")
 import numpy as np
-import simulate_data_1d as sim
+import functions.simulate_data_1d as sim
 from datetime import datetime
-import simu_mean_detect as mean_detect
+import functions.simu_mean_detect as mean_detect
 from sklearn.metrics.cluster import adjusted_rand_score
 import random
 #%%
+print('sys.argv', sys.argv)
 seed = int(sys.argv[1])
 init = sys.argv[2]
 N = int(sys.argv[3])
 T = int(sys.argv[4])
 trans_setting = sys.argv[5]
-effect_size= sys.argv[6]
-K_list =  [int(x) for x in sys.argv[7:]]
+nthread = int(sys.argv[6])
+effect_size= sys.argv[7]
+K_list =  [int(x) for x in sys.argv[8:]]
 print(K_list)
 startTime = datetime.now()
 # %% environment setup
 # create folder under seed if not existing
-os.chdir("C:/Users/test/Dropbox/DIRL/IHS/simu/simu_original/tuneK_iterations")
 def setpath(trans_setting, init = "true clustering"):
     if not os.path.exists('results'):
         os.makedirs('results', exist_ok=True)
@@ -40,10 +51,10 @@ if os.path.exists(file_name):
     exit()
     
 # direct the screen output to a file
-# stdoutOrigin = sys.stdout
-# sys.stdout = open("log.txt", "w")
-# print("\nName of Python script:", sys.argv[0])
-# sys.stdout.flush()
+stdoutOrigin = sys.stdout
+sys.stdout = open("log.txt", "w")
+print("\nName of Python script:", sys.argv[0])
+sys.stdout.flush()
 #%%
 np.random.seed(seed)
 # dimension of X0
@@ -64,7 +75,6 @@ delta = 0.05#1/T
 # K_list = range(1, 5)
 
 # parallel
-nthread=3
 epsilon = 1/T
 B=2000
 threshold_type ="maxcusum"
@@ -150,14 +160,25 @@ if init == "kmeans":
     loss = out[2].loss
 #%% 2. tune K from K_list in each iteration using fit()
 if init == "tuneK_iter":
-    out2 = mean_detect.fit(States, Actions, example="cdist", seed = seed,
+    out = mean_detect.fit(States, Actions, example="cdist", seed = seed,
                           init = "clustering",  B=B,
                           epsilon=epsilon,  nthread=nthread,threshold_type= threshold_type,
                           kappa_min = kappa_min, kappa_max = kappa_max,
                           K=K_list, init_cluster_range = T - 1 - kappa_min)
-    g_index_pred = out2.g_index
-    cp_pred = out2.changepoints
-    loss = out2.loss
+    g_index_pred = out.g_index
+    cp_pred = out.changepoints
+    loss = out.loss
+    print('out.K_path', out.K_path)
+#%% 3. fix K = 2
+if init == "K2":
+    out =mean_detect.fit(States, Actions, example="cdist", seed = seed,
+                          init = "clustering",  B=B,
+                          epsilon=epsilon,  nthread=nthread,threshold_type= threshold_type,
+                          kappa_min = kappa_min, kappa_max = kappa_max,
+                          K=2, init_cluster_range = T - 1 - kappa_min)
+    g_index_pred = out.g_index
+    cp_pred= out.changepoints
+    loss = out.loss
 #%%
 changepoint_err, ARI = evaluate(changepoints_true.squeeze(),
                                 g_index_pred.squeeze(), cp_pred.squeeze(), N, T)
@@ -165,9 +186,18 @@ print('changepoint_err',changepoint_err, 'ARI',ARI)
 #%%
 print('Finished. Time: ', datetime.now() - startTime)
 print('path', os.getcwd())
-with open(file_name, "wb") as f:
-    pickle.dump({'changepoints':cp_pred, 'clustering':g_index_pred, 
-                 'cp_err':changepoint_err,'ARI':ARI,
-                 'loss':loss#,
-                #  'elapse':elapse_time
-                 }, f)
+if init == 'tuneK_iter':
+    with open(file_name, "wb") as f:
+        pickle.dump({'changepoints':cp_pred, 'clustering':g_index_pred, 
+                     'cp_err':changepoint_err,'ARI':ARI,
+                     'loss':loss,
+                      'K_path':out.K_path
+                     }, f)
+else:
+    with open(file_name, "wb") as f:
+        pickle.dump({'changepoints':cp_pred, 'clustering':g_index_pred, 
+                     'cp_err':changepoint_err,'ARI':ARI,
+                     'loss':loss
+                     }, f)
+        
+        
