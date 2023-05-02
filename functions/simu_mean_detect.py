@@ -244,7 +244,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             res=reg.fit(X, y, sample_weight=weights)
     return g_index, loss
 
-def tuneK_wrap(K_list, States, N, T, changepoints,Actions,g_index=None,max_iter_gmr=20, C=5, is_tunek_wrap_parallel=1,Kl_fun='logN'):
+def tuneK_wrap(K_list, States, N, T, changepoints,Actions,g_index=None,max_iter_gmr=20, C=5, is_tunek_wrap_parallel=1,Kl_fun='Nlog(NT)/T', C_K=2):
     '''
     Trun K in each iteration from K_list
 
@@ -254,7 +254,7 @@ def tuneK_wrap(K_list, States, N, T, changepoints,Actions,g_index=None,max_iter_
         #                              example=example, Actions=Actions)
         g_index, loss = gmr(States, N, T, K, changepoints, Actions, g_index=None, max_iter_gmr=max_iter_gmr)
         result = namedtuple("result", ["IC", "g_index", "loss"])
-        return result(ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun), g_index, loss)
+        return result(ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun, C_K = C_K), g_index, loss)
     IC_max = None
     best_g_index = None
     best_loss = None
@@ -704,7 +704,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, nthread_B=1):
 def clusteringNchangepoints(example, clustering, changepoint_detect, States,
                             Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                             cusum_backward, C1=1, C2=1/2, max_iter=30,
-                            init_cluster_range=None, nthread=0, C=0, Kl_fun ='logN',
+                            init_cluster_range=None, nthread=0, C=0, Kl_fun ='Nlog(NT)/T', C_K = 2,
                             g_index_init = None,clustering_warm_start=1,
                             loss_path =0, threshold_type="maxcusum",
                             init_cluster_method = 'kmeans',
@@ -773,7 +773,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
     loss = goodnessofClustering(States, N, T, changepoints, Actions, g_index)
     if loss_path:
         loss_list[m + 1] = goodnessofClustering(States, N, T, changepoints, Actions, g_index_0)
-    ic = ut.IC(loss=loss, changepoints=changepoints,g_index= g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun)
+    ic = ut.IC(loss=loss, changepoints=changepoints,g_index= g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun, C_K = C_K)
     if loss_path:
         loss_list = loss_list[:iter_num]
     try:
@@ -788,14 +788,10 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States,
 def changepointsNclustering(example, clustering, changepoint_detect, States, Actions,
                             N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                             cusum_backward, C1=1, C2=1/2,
-                            max_iter=30, max_iter_gmr = 50, nthread=0, C=0, Kl_fun ='logN',
+                            max_iter=30, max_iter_gmr = 50, nthread=0, C=0, Kl_fun ='Nlog(NT)/T', C_K = 2,
                             changepoints_init=None, g_index_init = None, clustering_warm_start=1,
                             loss_path = 0, threshold_type="maxcusum", changepoint_init_indi = 0,
                             is_only_cluster = 0, break_early=1):# is_only_cluster: for evalutation "only_cluster" type
-# =======
-#                             is_only_cluster = 0):# is_only_cluster: for evalutation "only_cluster" type
-#     print('cploop nthread',nthread)
-# >>>>>>> Stashed changes
     # print("Kl_fun = ", Kl_fun)
     if loss_path:
         loss_list = np.zeros(max_iter+1)
@@ -862,7 +858,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
                 else:
                     loss = loss_list[m]
 
-            ic = ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun)
+            ic = ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun, C_K = C_K)
             # print("loss", loss, "ic", ic)
             iter_num = m
             break
@@ -887,7 +883,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
 #%% fit
 def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min = None, kappa_interval=None,epsilon=0.1, K=2,
         C1=1, C2=1/2,  alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=3, C=0, Kl_fun = 'logN',
+        max_iter_gmr = 50, seed = 1, nthread=3, C=0, Kl_fun = 'Nlog(NT)/T', C_K=2,
         changepoints_init=None, g_index_init = None, clustering_warm_start=1,
         loss_path =0, threshold_type="maxcusum", nthread_B= None,  B=2000,
         init_cluster_method = 'kmeans', distance_metric="correlation", linkage = "average",
@@ -955,7 +951,7 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
                 return gmr(States, N, T, K, changepoints, Actions, g_index, max_iter_gmr)
             else: # tune K in each iteration
                 return tuneK_wrap(K, States, N, T, changepoints,Actions,g_index=None,
-                                    max_iter_gmr=max_iter_gmr, C=C, is_tunek_wrap_parallel=is_tunek_wrap_parallel,Kl_fun=Kl_fun)
+                                    max_iter_gmr=max_iter_gmr, C=C, is_tunek_wrap_parallel=is_tunek_wrap_parallel,Kl_fun=Kl_fun, C_K =C_K)
 
     if example == "mean":
         cusum_forward = np.cumsum(States, axis = 1)/(np.tile((range(1,T+1)), [N, 1]).reshape([N, T, p]))
@@ -969,7 +965,7 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
         result = changepointsNclustering(example, clustering, changepoint_detect, States, Actions,
                                          N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                                          cusum_backward, C1, C2,
-                                         max_iter, max_iter_gmr, nthread, C, Kl_fun ,
+                                         max_iter, max_iter_gmr, nthread, C, Kl_fun , C_K,
                                          changepoints_init, g_index_init, clustering_warm_start,
                                          loss_path,
                                          threshold_type, changepoint_init_indi, is_only_cluster, break_early)
@@ -978,7 +974,7 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
         result = clusteringNchangepoints(example, clustering, changepoint_detect, States,
                                          Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
                                          cusum_backward, C1, C2, max_iter,
-                                         init_cluster_range, nthread, C, Kl_fun,
+                                         init_cluster_range, nthread, C, Kl_fun,C_K,
                                          g_index_init, clustering_warm_start,
                                          loss_path, threshold_type,
                                          init_cluster_method,
@@ -988,7 +984,7 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
 
 def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,epsilon=0.1,
         C1=1, C2=1/2, alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=0, C=0, Kl_fun = 'logN',  changepoints_init=None,
+        max_iter_gmr = 50, seed = 1, nthread=0, C=0, Kl_fun = 'Nlog(NT)/T', C_K = 2, changepoints_init=None,
         g_index_init_list = None, clustering_warm_start=1, loss_path =0,
         threshold_type="maxcusum", nthread_B= None, B=2000, init_cluster_method = 'kmeans',
         distance_metric="correlation", linkage = "average", changepoint_init_indi = 0,
@@ -1013,7 +1009,7 @@ def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints",
     def run_K(K):
         out = fit(States, Actions, example, init, kappa_max,kappa_min, kappa_interval,epsilon, K,
                 C1, C2, alpha, df, max_iter, init_cluster_range,
-                max_iter_gmr, seed, nthread, C, Kl_fun, changepoints_init, g_index_init_list[K_list.index(K)],
+                max_iter_gmr, seed, nthread, C, Kl_fun, C_K, changepoints_init, g_index_init_list[K_list.index(K)],
                 clustering_warm_start, loss_path,threshold_type, nthread_B, B,
                 init_cluster_method,distance_metric, linkage, changepoint_init_indi,
                 is_only_cluster, is_cp_parallel)
