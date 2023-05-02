@@ -28,8 +28,10 @@ scale_inidividual_facet_y_axes = function(plot, ylims) {
 
 ############# get the common legend ##############
 library(ggpubr)
+library(dplyr)
+library(tidyr)
 if(Sys.info()["nodename"] %in% c("PC-20181212HEBU")){
-  curr_dir <- "C:/Users/test/Dropbox/tml/IHS/simu/simu/toyexample/final_perf"
+  curr_dir <- "C:/Users/test/Dropbox/tml/IHS/simu/simu/output/final_perf"
   setwd(curr_dir)
 } else{ # greatlakes
   curr_dir <- "/home/mengbing/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
