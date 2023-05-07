@@ -80,6 +80,19 @@ def paramInIC(model, N, K, T, include_path_loss=0):
 
 # %% threshold in changepoint deteciton estimation
 def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
+    def sample_by_group(condition, nB_per_group):
+        random_state = condition[1]
+        rng = np.random.RandomState(random_state)
+        X = rng.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
+        # X = np.random.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
+        stat_max_by_u = 0.0
+        for u in range(kappa - 1, 0, -1):
+            mu1 = np.mean(X[:, :u, :], axis=(0, 1))
+            mu2 = np.mean(X[:, u:, :], axis=(0, 1))
+            stat = u * (kappa - u) / (kappa ** 2) * np.array(list(map(f, mu1 - mu2)))
+            stat_max_by_u = np.maximum(stat, stat_max_by_u)
+        return stat_max_by_u
+
     def run_one_normal(X, u):
         # np.random.seed(seed)
         mu1 = np.mean(X[:, :u, :], axis=(0, 1))
@@ -89,16 +102,15 @@ def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
 
     mean = np.zeros(df)
     cov = np.eye(df)
-    if N * kappa * B < 5000:
+    # max number of points per group
+    n_points = int(500000)
+    if N * kappa * B <= n_points:
         X_list = np.random.multivariate_normal(mean, cov, size=[N, kappa, B])
         sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(X_list[:, :, i, :], u) for i in range(B)
                                                for u in range(kappa - 1, 0, -1))
     else:
         # sample_stat = Parallel(n_jobs=nthread, backend ='threading')(delayed(run_one_normal)(np.random.multivariate_normal(mean, cov, size = [N,kappa,1]), u) for i in range(B)
         #                                         for u in range(kappa-1, 0, -1))
-
-        # max number of points per group
-        n_points = int(500000)
         # number of groups of points
         n_groups = int(np.floor(N * kappa * B / n_points))
         # for the remaining number of points
@@ -109,19 +121,6 @@ def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
 
         def f(x):
             return np.linalg.norm(x, ord=2) ** 2
-
-        def sample_by_group(condition, nB_per_group):
-            random_state = condition[1]
-            rng = np.random.RandomState(random_state)
-            X = rng.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
-            # X = np.random.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
-            stat_max_by_u = 0.0
-            for u in range(kappa - 1, 0, -1):
-                mu1 = np.mean(X[:, :u, :], axis=(0, 1))
-                mu2 = np.mean(X[:, u:, :], axis=(0, 1))
-                stat = u * (kappa - u) / (kappa ** 2) * np.array(list(map(f, mu1 - mu2)))
-                stat_max_by_u = np.maximum(stat, stat_max_by_u)
-            return stat_max_by_u
 
         # generate random states
         np.random.seed(seed*kappa)
