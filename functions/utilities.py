@@ -1,6 +1,7 @@
 # import sys, re
 from joblib import Parallel, delayed
 import numpy as np
+from collections import namedtuple
 
 
 # %% IC
@@ -207,3 +208,10 @@ def my_hierachy(States, K, distance_metric='correlation', linkage="average"):
     # >> 2 unique clusters
     cluster_labels = (cluster_labels - 1).astype(int)
     return cluster_labels
+
+
+
+
+
+
+
