@@ -354,7 +354,7 @@ class q_learning():
         T = States.shape[1] - 1
         Actions0 = np.zeros(shape=(N,T), dtype='int32')
         # print("States =", States)
-        # print("Actions0 =", Actions0)
+        # print("create_design_matrix")
         design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
         # print("design_matrix0=", design_matrix0)
         # print(design_matrix0[0,:].toarray())
