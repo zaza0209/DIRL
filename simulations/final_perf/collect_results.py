@@ -1,11 +1,28 @@
+# -*- coding: utf-8 -*-
+"""
+collect results
+
+@author: test
+"""
 # collect the results
-import pickle, os, sys, re
+import platform, sys, os, pickle, re
+plat = platform.platform()
+print(plat)
+if plat == 'Windows-10-10.0.14393-SP0': ##local
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/final_perf")
+    sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
+    os.chdir("/home/huly/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/huly/heterRL")
+else:
+    os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/huly0209_gmail_com/heterRL")
 import numpy as np
 import pandas as pd
 from datetime import date
-sys.path.append('/home/huly0209_gmail_com/heterRL')
-print(sys.path)
-import simu.utilities as ut
+# sys.path.append('/home/huly0209_gmail_com/heterRL')
+# print(sys.path)
+import functions.utilities as ut
 calculate_err = int(sys.argv[1])
 calculate_ic = int(sys.argv[2])
 is_save_all = int(sys.argv[3])
@@ -19,7 +36,7 @@ T = 50
 seeds = range(M)
 cov=0.25
 #C=1
-trans_setting = ['pwconst2','smooth']#,]#
+trans_setting = ['pwconst2']#,],'smooth'#
 effect_size =" "#"strong"
 # inits = ['true_clustering', "true_change_points",'kmeans',"random_clustering" ]
 init_all = ['true_clustering', 
@@ -52,6 +69,7 @@ file_name_index = [#'all',
                    #'(14)',
                    '(23)','(25)', '(235)', #'(16)',
 '(7)']
+inits =['tuneK_iter']
 random_cp_index = range(1, 5)
 today = date.today()
 
@@ -71,9 +89,8 @@ def run(calculate_err, calculate_ic,is_save_all, inits, N=N):
                 for seed in seeds:
                     os.chdir(path_original+ "/results/")
                     print('seed',seed)
-                    path_name = './strong_threshold_'+ threshold_type+'/sim_result_trans' + setting +'/N' + str(N) +'/T_' + str(T)+'_init_'+init+\
-                        '_1d/cov'+str(cov) + '/seed'+str(seed)                     
-
+                    path_name = 'transpwconst2/effect_size_strong/N50_T50/K[1, 2, 3, 4]/init_tuneK_iter/seed'+str(seed)                     
+                        # C:/Users/test/Dropbox/DIRL/IHS/simu/simu_original/tuneK_iterations/results/transpwconst2/effect_size_strong/N50_T50/K[1, 2, 3, 4]/init_tuneK_iter/seed1
                     print('path_name',path_name)
                     if os.path.exists(path_name):
                         os.chdir(path_name)
@@ -82,8 +99,10 @@ def run(calculate_err, calculate_ic,is_save_all, inits, N=N):
                         t = pickle.load(pkl_file)
                         # cp_err.append(t['cp_err'])
                         print('t[cp_err]',t['cp_err'], ', ARI:', t['ARI'])
+                        # if init == 'tuneK_iter':
+                        print('t Kpath', t['K_path'])
                         # ARI.append(t['ARI'])
-                        tmp = [setting, seed, init, t['cp_err'],t['ARI']]
+                        tmp = [setting, seed, 'best_model', t['cp_err'],t['ARI']]
                         res_list.append(tmp)
                         pkl_file.close()
                            
@@ -93,7 +112,7 @@ def run(calculate_err, calculate_ic,is_save_all, inits, N=N):
         if is_save:
             os.chdir(path_original+ "/results/")
             # for setting in trans_setting:
-            file_name="all_"+str(today)+'N' + str(N) + "_1d.csv"          
+            file_name="tuneK_iter_"+str(today)+'N' + str(N) + "_1d.csv"          
             res_list.to_csv(file_name, index=False, header=['Setting','seed','init','cp_err', 'ARI'])
      
 
@@ -274,7 +293,7 @@ def run(calculate_err, calculate_ic,is_save_all, inits, N=N):
     return
 #%%
 if calculate_err:
-    run(calculate_err, 0, 0, init_list[0])
+    run(calculate_err, 0, 0, inits)
 if calculate_ic:
     for inits in init_list:
         run(0, 1,0, inits)

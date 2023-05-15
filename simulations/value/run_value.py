@@ -10,13 +10,13 @@ from copy import copy
 plat = platform.platform()
 print(plat)
 if plat == 'Windows-10-10.0.14393-SP0': ##local
-    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/toyexample/value")
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/value")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
-elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31' or plat == 'Linux-3.10.0-1160.53.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core':  # biostat cluster
-    os.chdir("/home/huly/heterRL/toyexample/value")
+elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
+    os.chdir("/home/huly/heterRL/tuneK_iterations/value")
     sys.path.append("/home/huly/heterRL")
 else:
-    os.chdir("/home/huly0209_gmail_com/heterRL/toyexample/value")
+    os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/value")
     sys.path.append("/home/huly0209_gmail_com/heterRL")
 
 from sklearn import tree
@@ -25,7 +25,7 @@ from datetime import datetime
 # import test_stat.simulate_data_1d as sim
 from functions.simulate_data_1d_flexible import *
 from sklearn.tree import DecisionTreeRegressor
-import simu.compute_test_statistics_separateA as stat
+import functions.compute_test_statistics_separateA as stat
 from functions.evaluation import *
 import functions.simu_mean_detect as mean_detect
 # parallel jobs
@@ -293,11 +293,13 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             States_s = copy(States_updated[:, int(cp_current[0]):, :])
             for i in range(p):
                 States_s[:, :, i] = transform(States_s[:, :, i])
-            out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:,  int(cp_current[0]):],
-                                 seed = seed+batch_index, init = "changepoints", nthread=nthread,changepoints_init =cp_current, 
-                                 max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel, C=0)
-            best_out = out.best_model
-            g_index = best_out[1]
+            # out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:,  int(cp_current[0]):],
+            #                      seed = seed+batch_index, init = "changepoints", nthread=nthread,changepoints_init =cp_current, 
+            #                      max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel, C=0)
+            out = mean_detect.fit(States_s, Actions_updated[:,  int(cp_current[0]):],
+                                    seed = seed+batch_index, init = "changepoints", nthread=nthread, changepoints_init =cp_current,
+                                    max_iter=1,is_only_cluster=1, C=0, K=K_list)
+            g_index = out[1]
 
         if method == "only_cp":
             g_index = np.repeat(0, N)
@@ -320,7 +322,7 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                                  is_tune_parallel=0, is_cp_parallel = is_cp_parallel)
             cp_current += out.best_model[2]
         if method == "proposed":
-            # print('1')
+            print('1')
             if batch_index == 0:
                 cp_current = np.repeat(0,N)
                 kappa_min = 10 
@@ -336,21 +338,25 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             epsilon = 1/T_length
             print('States_s.shape', States_s.shape)
             try:
-                out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:, int(np.max(cp_current)):],
-                                     seed = seed, init = "clustering", epsilon=epsilon, nthread=nthread,
-                                     kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
-                                     init_cluster_range = T_length-1-kappa_min, 
-                                     is_cp_parallel=is_cp_parallel, C=0,
-                                     is_tune_parallel=is_tune_parallel)
-                print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
-                best_out = out.best_model
+                # out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:, int(np.max(cp_current)):],
+                #                      seed = seed, init = "clustering", epsilon=epsilon, nthread=nthread,
+                #                      kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
+                #                      init_cluster_range = T_length-1-kappa_min, 
+                #                      is_cp_parallel=is_cp_parallel, C=0,
+                #                      is_tune_parallel=is_tune_parallel)
+                out = mean_detect.fit(States_s, Actions_updated[:, int(np.max(cp_current)):],
+                                    seed = seed, init = "clustering", epsilon=epsilon,  nthread=nthread,
+                                    kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
+                                    K=K_list, init_cluster_range = T_length-1-kappa_min,
+                                    is_cp_parallel=is_cp_parallel, C=0)
+                # print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
                 # changepoints = best_out[2]
-                cp_current = np.repeat(int(np.max(cp_current)), N)+ best_out[2] #change_point_detected['integral_emp']
-                g_index = best_out[1]
+                cp_current = np.repeat(int(np.max(cp_current)), N)+ out.changepoints #change_point_detected['integral_emp']
+                g_index = out.g_index
                 print('system_indicator',system_indicator)
-                with open('interdata_batch'+str(batch_index)+'.dat' , "wb") as f:
-                    pickle.dump({'States':States_s,
-                                  'Actions':Actions_updated[:, int(np.max(cp_current)):]}, f)
+                # with open('interdata_batch'+str(batch_index)+'.dat' , "wb") as f:
+                #     pickle.dump({'States':States_s,
+                #                   'Actions':Actions_updated[:, int(np.max(cp_current)):]}, f)
             except:
                 print('!!! BUG in mean_detect')
                 with open('bugdata.dat' , "wb") as f:

@@ -34,8 +34,8 @@ fi
 
 
 for N in "${Ns[@]}"; do
-    for type in "proposed" "overall" "oracle"   ; do # "only_clusters" "only_cp" ; do  
-        for setting in "pwconst2"; do # "smooth"
+    for type in "proposed" "overall" "oracle" "only_clusters" "only_cp" ; do #  ; do  
+        for setting in "pwconst2" "smooth"; do # 
              write_slurm ${type} ${N} ${T_new} ${setting} ${nthread} ${cov} ${cp_detect_interval} ${is_tune_parallel} ${is_cp_parallel} 
          done
     done 
