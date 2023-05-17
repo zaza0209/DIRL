@@ -6,30 +6,24 @@ Data generation mechanism resembles the IHS data
 import platform, sys, os, pickle
 plat = platform.platform()
 print(plat)
-if plat == 'macOS-12.5-x86_64-i386-64bit': ##local
+if plat == 'macOS-13.0-x86_64-i386-64bit': ##local
     os.chdir("/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private/simulation_real")
     sys.path.append("/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private")
 elif plat == 'Linux-3.10.0-1160.42.2.el7.x86_64-x86_64-with-centos-7.6.1810-Core': # biostat cluster
     os.chdir("/home/mengbing/research/HeterRL/simulation_real")
     sys.path.append("/home/mengbing/research/HeterRL")
-elif plat == 'Linux-4.18.0-305.45.1.el8_4.x86_64-x86_64-with-glibc2.28':  # greatlakes
+elif plat == 'Linux-4.18.0-305.65.1.el8_4.x86_64-x86_64-with-glibc2.28':  # greatlakes
     os.chdir("/home/mengbing/research/HeterRL/simulation_real")
     sys.path.append("/home/mengbing/research/HeterRL")
 
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-# import simu.simu_mean_detect_modified as mean_detect
 import simu.simu_mean_detect as mean_detect
 from sklearn.metrics.cluster import adjusted_rand_score
 import simulation_real.simulate_data_real as sim
 import copy
-# import pandas as pd
-from simu.utilities import *
-# from sklearn.tree import DecisionTreeRegressor
-# from sklearn import tree
 from functions.evaluation_separateA import *
-# import HeterRL.functions.compute_test_statistics_separateA as stat
 
 
 # Arguments passed
@@ -40,7 +34,7 @@ effect_size = str(sys.argv[2])
 K = int(sys.argv[3])
 init = int(sys.argv[4])
 # # threshold_type = str(sys.argv[3]) #"Chi2" or "permutation"
-# seed = 20
+# seed = 3
 # effect_size = "strong"
 # K = 3
 # init = 20
@@ -65,7 +59,7 @@ num_threads = 5
 test_setting = "cdist"
 # effect_size = "large"
 if effect_size == "weak":
-    effect_size_factor = 0.2
+    effect_size_factor = 0.1
 elif effect_size == "moderate":
     effect_size_factor = 0.5
 elif effect_size == "strong":
@@ -73,58 +67,88 @@ elif effect_size == "strong":
 base_transition = np.array([[10, 0.4, -0.04, 0.1],
                             [11, -0.4, 0.05, 0.4],
                             [1.2, -0.02, 0.03, 0.8]])
-cluster_settings = {'cluster1': {'n': N_per_cluster, 'changepoints': [11],
-                                 'state': [base_transition +
-                                           np.zeros(shape = (3,4)) * effect_size_factor,
-                                           ]*2,
-                                 'action': [np.array([[0.6, 0.3, 0, 0],
-                                                     [-0.4, 0, 0, 0],
-                                                     [-0.5, 0, 0, 0]])*effect_size_factor,
-                                            np.array([[0.6, 0.3, 0, 0],
-                                                      [-0.4, 0, 0, 0],
-                                                      [-0.5, 0, 0, 0]])*-1.0*effect_size_factor
-                                            ]
-                                 },
-                    'cluster2': {'n': N_per_cluster, 'changepoints': [9, 17],
-                                 'state': [base_transition +
-                                           np.array([[-1.0, 0.0, 0, 0],
-                                                    [-0.5, 0.0, 0.0, 0.0],
-                                                    [-0.2, 0, 0.0, 0.0]]) * effect_size_factor,
-                                           base_transition +
-                                           np.array([[1.0, 0.15, -0.01, 0.02],
-                                                     [1.0, -0.15, 0.01, 0.1],
-                                                     [0.3, -0.01, 0.01, -0.15]]) * effect_size_factor,
-                                           base_transition +
-                                           np.array([[1.0, 0.15, -0.01, 0.02],
-                                                     [1.0, -0.15, 0.01, 0.1],
-                                                     [0.3, -0.01, 0.01, -0.15]]) * effect_size_factor
-                                           ],
-                                 'action': [np.array([[0.5, 0.3, 0, 0],
-                                                     [-0.3, 0, 0, 0],
-                                                     [-0.4, 0, 0, 0]])*effect_size_factor,
-                                            np.array([[0.7, 0.2, 0, 0],
-                                                      [-0.5, 0, 0, 0],
-                                                      [-0.6, 0, 0, 0]])*-1.0*effect_size_factor,
-                                            np.array([[0.7, 0.2, 0, 0],
-                                                      [-0.5, 0, 0, 0],
-                                                      [-0.6, 0, 0, 0]])*effect_size_factor
-                                            ]
-                                 },
-                    'cluster3': {'n': N_per_cluster, 'changepoints': [26],
-                                 'state': [base_transition +
-                                           np.array([[1.5, 0.05, 0, 0],
-                                                     [0.5, -0.2, 0.0, 0.0],
-                                                     [0.2, 0, 0.0, 0.0]]) * effect_size_factor
-                                           ]*2,
-                                 'action': [np.array([[0.55, 0.25, 0, 0],
-                                                     [-0.4, 0, 0, 0],
-                                                     [-0.5, 0, 0, 0]])*effect_size_factor]*2
-                                 }
-                    }
+def transition_function11(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    # print(St_full)
+    return (base_transition + np.zeros(shape=(3, 4)) * effect_size_factor +\
+            At * np.array([[0.6, 0.3, 0, 0],
+              [-0.4, 0, 0, 0],
+              [-0.5, 0, 0, 0]]) * effect_size_factor) @ St_full
+def transition_function12(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    return (base_transition + np.zeros(shape=(3, 4)) * effect_size_factor +\
+            (-1) * At * np.array([[0.6, 0.3, 0, 0],
+              [-0.4, 0, 0, 0],
+              [-0.5, 0, 0, 0]]) * effect_size_factor) @ St_full
 
-# importlib.reload(sim)
-sim_dat = sim.simulate_data(T, cluster_settings)
-States, Rewards, Actions = sim_dat.simulate(seed, burnin=60)
+def transition_function21(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    return (base_transition +\
+            np.array([[-1.0, 0.0, 0, 0],
+                      [-0.5, 0.0, 0.0, 0.0],
+                      [-0.2, 0, 0.0, 0.0]]) * effect_size_factor +\
+            At * np.array([[0.5, 0.3, 0, 0],
+                           [-0.3, 0, 0, 0],
+                           [-0.4, 0, 0, 0]]) * effect_size_factor) @ St_full
+def transition_function22(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    return (base_transition + \
+            np.array([[1.0, 0.15, -0.01, 0.02],
+                      [1.0, -0.15, 0.01, 0.1],
+                      [0.3, -0.01, 0.01, -0.15]]) * effect_size_factor +\
+            (-1.0)*At * np.array([[0.7, 0.2, 0, 0],
+                           [-0.5, 0, 0, 0],
+                           [-0.6, 0, 0, 0]]) * effect_size_factor) @ St_full
+def transition_function23(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    return (base_transition + \
+            np.array([[1.0, 0.15, -0.01, 0.02],
+                      [1.0, -0.15, 0.01, 0.1],
+                      [0.3, -0.01, 0.01, -0.15]]) * effect_size_factor +\
+            At * np.array([[0.7, 0.2, 0, 0],
+                           [-0.5, 0, 0, 0],
+                           [-0.6, 0, 0, 0]]) * effect_size_factor) @ St_full
+
+def transition_function3(St, At, t):
+    St_full = np.insert(St, 0, 1, axis=0)
+    return (base_transition + \
+            np.array([[1.5, 0.05, 0, 0],
+                      [0.5, -0.2, 0.0, 0.0],
+                      [0.2, 0, 0.0, 0.0]]) * effect_size_factor +\
+            At * np.array([[0.55, 0.25, 0, 0],
+                           [-0.4, 0, 0, 0],
+                           [-0.5, 0, 0, 0]]) * effect_size_factor) @ St_full
+
+def reward_function(St, At, t):
+    return St[0]
+
+system_settings_list_initial = [
+                        {'N': N_per_cluster, 'T': T,
+                         'changepoints': [11],
+                         'state_functions': [transition_function11, transition_function12],
+                         'reward_functions': reward_function
+                         },
+                        {'N': N_per_cluster, 'T': T,
+                         'changepoints': [9, 17],
+                         'state_functions': [transition_function21, transition_function22, transition_function23],
+                         'reward_functions': reward_function
+                         },
+                        {'N': N_per_cluster, 'T': T,
+                         'changepoints': [0],
+                         'state_functions': [transition_function3, transition_function3],
+                         'reward_functions': reward_function
+                         }]
+
+# number of clusters
+K_true = len(system_settings_list_initial)
+
+# simulate the first offline batch
+States, Rewards, Actions = sim.simulate(system_settings=system_settings_list_initial[0], seed=seed)
+for k in range(1, K_true):
+    States_k, Rewards_k, Actions_k = sim.simulate(system_settings = system_settings_list_initial[k], seed = seed)
+    States = np.concatenate((States, States_k), axis=0)
+    Rewards = np.concatenate((Rewards, Rewards_k), axis=0)
+    Actions = np.concatenate((Actions, Actions_k), axis=0)
 
 # make a copy
 States_s = copy(States)
@@ -135,9 +159,7 @@ def transform(x):
 for i in range(p_var):
     States_s[:,:,i] = transform(States[:,:,i])
 
-# number of clusters
-K_true = len(cluster_settings)
-N = sim_dat.N
+N = States.shape[0]
 
 
 # %% evaluation function
@@ -157,7 +179,7 @@ def evaluate(changepoints_true, g_index, predict, T):
 path_name = 'data/'
 if not os.path.exists(path_name):
     os.makedirs(path_name, exist_ok=True)
-path_name += '20221031_C0/'
+path_name += '20230510/'
 if not os.path.exists(path_name):
     os.makedirs(path_name, exist_ok=True)
 path_name += "sim_" + effect_size + "/"
@@ -173,6 +195,8 @@ sys.stdout = open(path_name + "log_seed" + str(seed) + "_K" + str(K) + "_init" +
 print("\nName of Python script:", sys.argv[0])
 sys.stdout.flush()
 
+# changepoints_true = np.repeat([17], [N_per_cluster], axis=0)
+# g_index_true = np.repeat([0], [N_per_cluster], axis=0)
 changepoints_true = np.repeat([11,17,0], [N_per_cluster]*3, axis=0)
 g_index_true = np.repeat([0,1,2], [N_per_cluster]*3, axis=0)
 
@@ -190,35 +214,57 @@ best_model = None
 nthread = 5
 threshold_type = "maxcusum"
 max_iter = 10
-B = 5000
-kappa_min = int((T - 1 - np.max(changepoints_true)) * 0.8)
-kappa_max = min(T - 1, int((T - 1 - np.min(changepoints_true)) * 1.2))
+B = 10000
+kappa_min = 6#int((T - 1 - np.max(changepoints_true)) * 0.8)
+kappa_max = 22 #min(T - 1, int((T - 1 - np.min(changepoints_true)) * 1.2))
 
 
 # %% init with a fixed change point
 changepoints_init = np.repeat(init, N)
-out = mean_detect.fit(States_s, Actions, example="cdist", seed=seed, K=K, C = 0,
-                      init="changepoints", changepoints_init=changepoints_init, B=B,
-                      epsilon=epsilon, nthread=nthread, threshold_type=threshold_type,
-                      kappa_min=kappa_min, kappa_max=kappa_max,
-                      max_iter=max_iter, is_cp_parallel = 1)
+# out = mean_detect.fit(States_s, Actions, example="cdist", seed=seed, K=K, C = 0,
+#                       init="changepoints", changepoints_init=changepoints_init, B=B,
+#                       epsilon=epsilon, nthread=nthread, threshold_type=threshold_type,
+#                       kappa_min=kappa_min, kappa_max=kappa_max,
+#                       max_iter=max_iter, is_cp_parallel = 1)
 
+# example="cdist_sparse"; C = 0; init="changepoints"; nthread=3; alpha = 0.0005; max_iter=1
+# is_cp_parallel = 1; break_early = 0; nthread_B=5; kappa_interval=None; C1=1; C2=1/2
+# df=None; init_cluster_range=None; max_iter_gmr = 50; Kl_fun = 'Nlog(NT)/T'; C_K=2;
+# g_index_init = None; clustering_warm_start=1; loss_path =0
+# init_cluster_method = 'kmeans'; distance_metric="correlation"; linkage = "average"
+# changepoint_init_indi = 0; is_only_cluster = 0; is_tunek_wrap_parallel=0
+# nfold = 5; penalty_function = 'SCAD'; select_param_interval = 5
+
+# K = 1
+param_grid = {"alpha": [0.0001, 0.001, 0.005, 0.01, 0.05, 0.1],
+              "gamma": [3.7]}
+out = mean_detect.fit(States, Actions, example="cdist_sparse", seed=seed, K=K, C=0,
+                      param_grid=param_grid, nfold=5, penalty_function='SCAD', select_param_interval=1,
+                      init="changepoints", changepoints_init=changepoints_init, B=B,
+                      epsilon=epsilon, nthread=3, threshold_type=threshold_type,
+                      kappa_min=kappa_min, kappa_max=kappa_max, alpha=0.01,
+                      max_iter=5, is_cp_parallel=1, break_early=0, nthread_B=5)
 
 # %%
 changepoint_err, ARI = evaluate(changepoints_true.squeeze(), out[1].squeeze(), out[2].squeeze(), T)
 print('changepoint_err', changepoint_err, 'ARI', ARI)
 
 
+# record results
 saved_data = {
+    'K': K,
     "model_IC": out[4][0],
     "loss": out[3],
-    'K': K,
     "changepoints": out[2].squeeze(),
     "changepoint_err": changepoint_err,
     "clusters": out[1].squeeze(),
     "cluster_ari": ARI,
-    "iter_num": out[0] + 1
+    "iter_num": out[0] + 1,
+    "p_values_cp": out[5],
+    "p_values": out[6],
+    "dfs": out[7]
     }
+
 file_name = path_name + "result_seed" + str(seed) + "_K" + str(K) + "_init" + str(init) + ".dat"
 # file_name = path_name + "cpresult_" + "seed" + str(seed) + ".dat"
 with open(file_name, 'wb') as f:
