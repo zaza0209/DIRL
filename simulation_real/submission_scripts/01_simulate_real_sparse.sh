@@ -23,13 +23,13 @@ for effect_size in ${effect_sizes[@]}; do
 #SBATCH --mail-type=END,FAIL,BEGIN
 #SBATCH --mem=${memory}g
 #SBATCH --cpus-per-task=1
-#SBATCH --array=1-20
+#SBATCH --array=11-20
 #SBATCH -o ./reports/%x_%A_%a.out 
 ##SBATCH --constraint=E5-2650v4
 
 #module load python
 cd /home/mengbing/research/HeterRL/simulation_real/
-python3 01_simulate_real_run.py \$SLURM_ARRAY_TASK_ID ${effect_size} ${K} ${init}" > 01_simulate_real_${effect_size}_K${K}_init${init}_run.slurm
+python3 01_simulate_real_sparse_run.py \$SLURM_ARRAY_TASK_ID ${effect_size} ${K} ${init}" > 01_simulate_real_${effect_size}_K${K}_init${init}_run.slurm
 	 		sbatch 01_simulate_real_${effect_size}_K${K}_init${init}_run.slurm
 		done
 	done
