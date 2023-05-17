@@ -7,7 +7,7 @@ import platform, sys, os, pickle, re
 plat = platform.platform()
 print(plat)
 if plat == 'Windows-10-10.0.14393-SP0': ##local
-    os.chdir("C:/Users/test/Dropbox/DIRL/IHS/simu/simu/tuneK_iterations/final_perf")
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/final_perf")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
     os.chdir("/home/huly/heterRL/tuneK_iterations/final_perf")
@@ -199,5 +199,3 @@ else:
                      'cp_err':changepoint_err,'ARI':ARI,
                      'loss':loss
                      }, f)
-        
-        

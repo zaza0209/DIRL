@@ -30,8 +30,8 @@ This repository contains the implementation for the paper "Doubly Non-homogeneou
         - `run_maxiter_samesign.py` simulates 1-dimensional data with same-sign transition functions and test for double non-homogeneity.
         - `collect_results.py` collect simulation results of the performance of the proposed method to generate Figure 3 and Figure 4 in the paper.
         - `collect_results.py` collect simulation results of the performance of the proposed method given numbers of clusters when the transition functions of the two clusters have the same sign on the interaction term.
-        - `plot_fig3_cp.py` creates Figure 3 of the estimation performance the proposed method given different initial change point locations. 
-        - `plot_fig4_cp.py` creates Figure 4 of the estimation performance the proposed method given different numbers of clusters. 
+        - `plot_suppC1_cp.py` creates the supplement Figure C1 of the estimation performance the proposed method given different initial change point locations. 
+        - `plot_suppC2_K.py` creates the supplement Figure C2 of the estimation performance the proposed method given different numbers of clusters. 
         - To run the 1-dimensional simulation in sequence, 
         ```sh
         bash create_maxiter.sh
@@ -42,7 +42,7 @@ This repository contains the implementation for the paper "Doubly Non-homogeneou
         - `run_value_samesign.py` estimates the value of different policies in environment where different clusters have the same sign in the interaction term in the transition functions.
         - `collect_results.py` collect simulation results of the value of the proposed method when the transition functions of the two clusters have different signs on the interaction term. 
         - `collect_results_samesign.py` collect simulation results of the value of the proposed method when the transition functions of the two clusters have the same sign on the interaction term. 
-        - `plot_fig5_supp1_value.py` creates Figure 5 in the paper and the Figure 1 in the supplement of value difference distribution. 
+        - `plot_value.py` creates Figure 5 in the paper and the Figure 1 in the supplement of value difference distribution. 
         - To run the evaluation in sequence, 
         ```sh
         bash create_value.sh
