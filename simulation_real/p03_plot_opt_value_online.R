@@ -7,10 +7,10 @@ library(ggsci)
 args = commandArgs(trailingOnly=TRUE)
 # N <- as.integer(args[1])
 if(Sys.info()["sysname"] %in% c("Darwin")){
-  curr_dir <- "/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private/simulation_real"
+  curr_dir <- "/Users/xxx/Documents/research/change_point_clustering/HeterRL_private/simulation_real"
   setwd(curr_dir)
 } else{ # greatlakes
-  curr_dir <- "/home/mengbing/research/HeterRL/simulation_real"
+  curr_dir <- "/home/xxx/research/HeterRL/simulation_real"
   setwd(curr_dir)
 }
 

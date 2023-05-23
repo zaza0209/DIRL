@@ -4,9 +4,9 @@ library(lemon)
 library(ggpubr)
 library("ggsci")
 if (Sys.info()['sysname'] == "Darwin"){
-  curr_dir <- "/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private/simulation_real/"
+  curr_dir <- "/Users/xxx/Documents/research/change_point_clustering/HeterRL_private/simulation_real/"
 } else{
-  curr_dir <- "/home/mengbing/research/HeterRL/simulation_real"
+  curr_dir <- "/home/xxx/research/HeterRL/simulation_real"
 }
 setwd(curr_dir)
 args = commandArgs(trailingOnly=TRUE)

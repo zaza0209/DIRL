@@ -10,11 +10,11 @@ if plat == 'Windows-10-10.0.14393-SP0': ##local
     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/final_perf")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
-    os.chdir("/home/huly/heterRL/tuneK_iterations/final_perf")
-    sys.path.append("/home/huly/heterRL")
+    os.chdir("/home/xx/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/xx/heterRL")
 else:
-    os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/final_perf")
-    sys.path.append("/home/huly0209_gmail_com/heterRL")
+    os.chdir("/home/xx/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/xx/heterRL")
 import numpy as np
 import functions.simulate_data_1d as sim
 from datetime import datetime
@@ -30,7 +30,7 @@ T = int(sys.argv[4])
 trans_setting = sys.argv[5]
 nthread = int(sys.argv[6])
 effect_size= sys.argv[7]
-K_list =  [int(x) for x in sys.argv[8:]]
+K_list =  [1,2,3,4]
 print(K_list)
 startTime = datetime.now()
 # %% environment setup

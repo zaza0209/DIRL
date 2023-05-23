@@ -13,11 +13,11 @@ if plat == 'Windows-10-10.0.14393-SP0': ##local
     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/value")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
 elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
-    os.chdir("/home/huly/heterRL/tuneK_iterations/value")
-    sys.path.append("/home/huly/heterRL")
+    os.chdir("/home/xx/heterRL/tuneK_iterations/value")
+    sys.path.append("/home/xx/heterRL")
 else:
-    os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/value")
-    sys.path.append("/home/huly0209_gmail_com/heterRL")
+    os.chdir("/home/xx/heterRL/tuneK_iterations/value")
+    sys.path.append("/home/xx/heterRL")
 
 from sklearn import tree
 import numpy as np

@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/mengbing/research/HeterRL/simulation_real/submission_scripts
+cd /home/xxx/research/HeterRL/simulation_real/submission_scripts
 effect_sizes=("weak" "moderate" "strong") 
 # effect_sizes=("weak" "strong") 
 Ks=(2 3 4)
@@ -28,7 +28,7 @@ for effect_size in ${effect_sizes[@]}; do
 ##SBATCH --constraint=E5-2650v4
 
 #module load python
-cd /home/mengbing/research/HeterRL/simulation_real/
+cd /home/xxx/research/HeterRL/simulation_real/
 python3 01_simulate_real_sparse_run.py \$SLURM_ARRAY_TASK_ID ${effect_size} ${K} ${init}" > 01_simulate_real_${effect_size}_K${K}_init${init}_run.slurm
 	 		sbatch 01_simulate_real_${effect_size}_K${K}_init${init}_run.slurm
 		done

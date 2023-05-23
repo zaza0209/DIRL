@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/huly0209_gmail_com/heterRL/toyexample/final_2
+cd /home/xx/heterRL/toyexample/final_2
 
 Ns=(50)
 nthread=8
@@ -19,7 +19,7 @@ write_slurm() {
 #SBATCH --array=0-19
 #SBATCH -o ./reports/%x_%A_%a.out 
 
-cd /home/huly0209_gmail_com/heterRL/toyexample/final_2
+cd /home/xx/heterRL/toyexample/final_2
 
 python3 run_maxiter.py \$SLURM_ARRAY_TASK_ID $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10}
 " > maxiter_init$1_N$2_T$3_set$4_cov$6_cp$7_K${8}_cp${10}_run.slurm

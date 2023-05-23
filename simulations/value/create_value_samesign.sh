@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/huly0209_gmail_com/heterRL/toyexample/value_samesign
+cd /home/xx/heterRL/toyexample/value_samesign
 
 Ns=(100)
 T_new=250 
@@ -20,7 +20,7 @@ write_slurm() {
 #SBATCH --array=0-19
 #SBATCH -o ./reports/%x_%A_%a.out 
 
-cd /home/huly0209_gmail_com/heterRL/toyexample/value_samesign
+cd /home/xx/heterRL/toyexample/value_samesign
 
 python3 run_value_samesign.py \$SLURM_ARRAY_TASK_ID $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10}
 " > value_$1_N$2_T$3_set$4_cov$6_cpinterv$7_${10}.slurm
