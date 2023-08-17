@@ -9,7 +9,7 @@ if(Sys.info()["nodename"] %in% c("PC-20181212HEBU")){
   curr_dir <- "C:/Users/test/Dropbox/DIRL/IHS/simu/simu/tuneK_iterations/value"
   setwd(curr_dir)
 } else{ # greatlakes
-  curr_dir <- "/home/mengbing/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
+  curr_dir <- "/home/xxx/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
   setwd(curr_dir)
 }
 
@@ -87,7 +87,7 @@ if(Sys.info()["nodename"] %in% c("PC-20181212HEBU")){
   curr_dir <- "C:/Users/test/Dropbox/DIRL/IHS/simu/simu/tuneK_iterations/value_samesign"
   setwd(curr_dir)
 } else{ # greatlakes
-  curr_dir <- "/home/mengbing/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
+  curr_dir <- "/home/xxx/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
   setwd(curr_dir)
 }
 N <- 50

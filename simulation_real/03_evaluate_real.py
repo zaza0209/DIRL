@@ -9,14 +9,14 @@ from copy import copy
 plat = platform.platform()
 # print(plat)
 if plat == 'macOS-13.0-x86_64-i386-64bit': ##local
-    os.chdir("/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private/simulation_real")
-    sys.path.append("/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private")
+    os.chdir("/Users/xxx/Documents/research/change_point_clustering/HeterRL_private/simulation_real")
+    sys.path.append("/Users/xxx/Documents/research/change_point_clustering/HeterRL_private")
 elif plat == 'Linux-3.10.0-1160.42.2.el7.x86_64-x86_64-with-centos-7.6.1810-Core': # biostat cluster
-    os.chdir("/home/mengbing/research/HeterRL/simulation_real")
-    sys.path.append("/home/mengbing/research/HeterRL")
+    os.chdir("/home/xxx/research/HeterRL/simulation_real")
+    sys.path.append("/home/xxx/research/HeterRL")
 elif plat == 'Linux-4.18.0-305.65.1.el8_4.x86_64-x86_64-with-glibc2.28':  # greatlakes
-    os.chdir("/home/mengbing/research/HeterRL/simulation_real")
-    sys.path.append("/home/mengbing/research/HeterRL")
+    os.chdir("/home/xxx/research/HeterRL/simulation_real")
+    sys.path.append("/home/xxx/research/HeterRL")
 
 import numpy as np
 from datetime import datetime
@@ -248,7 +248,7 @@ param_grid_cp = {"alpha": [0.0001, 0.001, 0.005, 0.01, 0.05, 0.1],
               "gamma": [3.7]}
 
 print("States.shape =", States.shape)
-# test=pickle.load(open("/Users/mengbing/Documents/research/change_point_clustering/HeterRL_private/simulation_real/bugdata_proposed.dat", "rb"))
+# test=pickle.load(open("/Users/xxx/Documents/research/change_point_clustering/HeterRL_private/simulation_real/bugdata_proposed.dat", "rb"))
 # States=test['States']
 # Rewards=test['Rewards']
 # Actions=test['Actions']

@@ -5,7 +5,7 @@ import pickle, os, sys, re
 import numpy as np
 import pandas as pd
 from datetime import date
-sys.path.append('/home/huly0209_gmail_com/heterRL')
+sys.path.append('/home/xx/heterRL')
 print(sys.path)
 is_save = int(sys.argv[1])
 M=20

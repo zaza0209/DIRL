@@ -29,7 +29,8 @@ def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun='no_scale', Kl_fun='N
 
     '''
     # K = len(set(g_index))
-    # print("Kl_fun = ", Kl_fun)
+    print("Kl_fun = ", Kl_fun)
+    print('K', K, 'N', N)
     if Kl_fun == 'log':
         Kl = K * np.log(np.sum(T - 1 - changepoints))
     elif Kl_fun == "sqrt":
@@ -139,75 +140,75 @@ def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
 
 
 # %% time series clustering
-from dtaidistance import dtw
-from scipy.cluster.hierarchy import single, complete, average, ward, fcluster
-import pandas as pd
-
-
-# from scipy.cluster.hierarchy import fcluster
+# from dtaidistance import dtw
+# from scipy.cluster.hierarchy import single, complete, average, ward, fcluster
 # import pandas as pd
-def my_hierachy(States, K, distance_metric='correlation', linkage="average"):
-    if distance_metric == "correlation":
-        # Reshape the data so each series is a column and call the dataframe.corr() function
-        # distance_matrix = pd.concat([series for series in X['dim_0'].values], axis=1).corr()
-        distance_matrix = pd.DataFrame(np.vstack(States[:, :, :].reshape(States.shape[0], 1, -1)).T).corr()
-    elif distance_metric == "DWT":
-        # Italy Power Demand time series are loaded in a pd.Series format.
-        # The dtw_distance function expects series to be shaped as a (l, m) array,
-        # where l=length of series, m=# dimensions
-        # series_list = X['dim_0'].values
-        series_list = [None] * States.shape[0]
-        for i in range(len(series_list)):
-            # length = len(series_list[i])
-            series_list[i] = States[i, :, :].flatten().reshape(-1, 1)
 
-        # Initialize distance matrix
-        n_series = len(series_list)
-        distance_matrix = np.zeros(shape=(n_series, n_series))
 
-        # Build distance matrix
-        for i in range(n_series):
-            for j in range(n_series):
-                x = series_list[i]
-                y = series_list[j]
-                if i != j:
-                    dist = dtw.distance_fast(x.flatten(), y.flatten())
-                    distance_matrix[i, j] = dist
+# # from scipy.cluster.hierarchy import fcluster
+# # import pandas as pd
+# def my_hierachy(States, K, distance_metric='correlation', linkage="average"):
+#     if distance_metric == "correlation":
+#         # Reshape the data so each series is a column and call the dataframe.corr() function
+#         # distance_matrix = pd.concat([series for series in X['dim_0'].values], axis=1).corr()
+#         distance_matrix = pd.DataFrame(np.vstack(States[:, :, :].reshape(States.shape[0], 1, -1)).T).corr()
+#     elif distance_metric == "DWT":
+#         # Italy Power Demand time series are loaded in a pd.Series format.
+#         # The dtw_distance function expects series to be shaped as a (l, m) array,
+#         # where l=length of series, m=# dimensions
+#         # series_list = X['dim_0'].values
+#         series_list = [None] * States.shape[0]
+#         for i in range(len(series_list)):
+#             # length = len(series_list[i])
+#             series_list[i] = States[i, :, :].flatten().reshape(-1, 1)
 
-    def hierarchical_clustering(dist_mat, method='complete'):
-        if method == 'complete':
-            Z = complete(distance_matrix)
-        if method == 'single':
-            Z = single(distance_matrix)
-        if method == 'average':
-            Z = average(distance_matrix)
-        if method == 'ward':
-            Z = ward(distance_matrix)
-        # fig = plt.figure(figsize=(16, 8))
-        # dn = dendrogram(Z)
-        # plt.title(f"Dendrogram for {method}-linkage with correlation distance")
-        # plt.show()
-        return Z
+#         # Initialize distance matrix
+#         n_series = len(series_list)
+#         distance_matrix = np.zeros(shape=(n_series, n_series))
 
-    linkage_matrix = hierarchical_clustering(distance_matrix, method=linkage)
+#         # Build distance matrix
+#         for i in range(n_series):
+#             for j in range(n_series):
+#                 x = series_list[i]
+#                 y = series_list[j]
+#                 if i != j:
+#                     dist = dtw.distance_fast(x.flatten(), y.flatten())
+#                     distance_matrix[i, j] = dist
 
-    # select maximum number of clusters
-    cluster_labels = fcluster(linkage_matrix, K, criterion='maxclust')
-    # print(np.unique(cluster_labels))
-    # #>> 4 unique clusters
-    # cluster_labels = fcluster(linkage_matrix, 10, criterion='maxclust')
-    # print(np.unique(cluster_labels))
-    # >> 10 unique clusters
+#     def hierarchical_clustering(dist_mat, method='complete'):
+#         if method == 'complete':
+#             Z = complete(distance_matrix)
+#         if method == 'single':
+#             Z = single(distance_matrix)
+#         if method == 'average':
+#             Z = average(distance_matrix)
+#         if method == 'ward':
+#             Z = ward(distance_matrix)
+#         # fig = plt.figure(figsize=(16, 8))
+#         # dn = dendrogram(Z)
+#         # plt.title(f"Dendrogram for {method}-linkage with correlation distance")
+#         # plt.show()
+#         return Z
 
-    # hand-select an appropriate cut-off on the dendrogram
-    # cluster_labels = fcluster(linkage_matrix, 600, criterion='distance')
-    # print(np.unique(cluster_labels))
-    # #>> 3 unique clusters
-    # cluster_labels = fcluster(linkage_matrix, 800, criterion='distance')
-    # print(np.unique(cluster_labels))
-    # >> 2 unique clusters
-    cluster_labels = (cluster_labels - 1).astype(int)
-    return cluster_labels
+#     linkage_matrix = hierarchical_clustering(distance_matrix, method=linkage)
+
+#     # select maximum number of clusters
+#     cluster_labels = fcluster(linkage_matrix, K, criterion='maxclust')
+#     # print(np.unique(cluster_labels))
+#     # #>> 4 unique clusters
+#     # cluster_labels = fcluster(linkage_matrix, 10, criterion='maxclust')
+#     # print(np.unique(cluster_labels))
+#     # >> 10 unique clusters
+
+#     # hand-select an appropriate cut-off on the dendrogram
+#     # cluster_labels = fcluster(linkage_matrix, 600, criterion='distance')
+#     # print(np.unique(cluster_labels))
+#     # #>> 3 unique clusters
+#     # cluster_labels = fcluster(linkage_matrix, 800, criterion='distance')
+#     # print(np.unique(cluster_labels))
+#     # >> 2 unique clusters
+#     cluster_labels = (cluster_labels - 1).astype(int)
+#     return cluster_labels
 
 
 

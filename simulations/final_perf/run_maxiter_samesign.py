@@ -6,7 +6,7 @@ import platform, sys, os, pickle, re
 sys.path.append('~/.local/lib64/python3.6/site-packages') # òyó??￡?éμ?μ??·
 sys.path.append('/usr/lib64/python3.6/site-packages') # òyó??￡?éμ?μ??·
 import numpy as np
-sys.path.append('/home/huly0209_gmail_com/heterRL')
+sys.path.append('/home/xx/heterRL')
 import simu.simulate_data_1d as sim
 from datetime import datetime
 import simu.simu_mean_detect as mean_detect

@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/mengbing/research/HeterRL/simulation_real/submission_scripts
+cd /home/xxx/research/HeterRL/simulation_real/submission_scripts
 
 effect_sizes=("weak" "moderate" "strong") 
 # type_ests=("proposed" "oracle" "cluster_only" "changepoint_only") 
@@ -35,7 +35,7 @@ for j in ${!effect_sizes[@]}; do
 ##SBATCH --constraint=E5-2650v4
 
 module load python
-cd /home/mengbing/research/HeterRL/simulation_real/
+cd /home/xxx/research/HeterRL/simulation_real/
 python3 03_evaluate_real.py \$SLURM_ARRAY_TASK_ID ${effect_size} ${type_est}" > 03_evaluate_${effect_size}_${type_est}_run.slurm
 	 sbatch 03_evaluate_${effect_size}_${type_est}_run.slurm
 

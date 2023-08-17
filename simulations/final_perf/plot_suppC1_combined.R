@@ -6,7 +6,7 @@ if(Sys.info()["nodename"] %in% c("PC-20181212HEBU")){
   curr_dir <- "C:/Users/test/Dropbox/DIRL/IHS/simu/simu/output/final_perf"
   setwd(curr_dir)
 } else{ # greatlakes
-  curr_dir <- "/home/mengbing/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
+  curr_dir <- "/home/xxx/research/RL_nonstationary/code2/simulation_nonstationary_changept_detection/output"
   setwd(curr_dir)
 }
 dat_cp =fread('icmodel_2022-11-02method(235)N50_1d.csv')
