@@ -14,18 +14,16 @@ if(Sys.info()["sysname"] %in% c("Darwin")){
   setwd(curr_dir)
 }
 
-set.seed(50)
-# dat <- fread(paste0("data_optvalue_online_dt_N", N, ".csv"))
 date <- "20230510"
 dat <- fread(paste0("output/", date, "_optvalue_online.csv"))
 effect_sizes <- c('strong', 'moderate', 'weak')
 effect_sizes_labels <- c('Strong', 'Moderate', 'Weak')
 dat <- dat[dat$`Average Reward`>0,]
 dat$Method_short <- dat$Method
-dat$Method_short <- factor(dat$Method_short, levels = c("proposed", "oracle", "overall", "changepoint_only", "cluster_only"),
-                     labels = c("(i)", "(ii)", "(iii)", "(iv)", "(v)"))
-dat$Method <- factor(dat$Method, levels = c("proposed", "oracle", "overall", "changepoint_only", "cluster_only"),
-                     labels = c("(i) Proposed", "(ii) Oracle", "(iii) DH", "(iv) Homogeneous", "(v) Stationary"))
+dat$Method_short <- factor(dat$Method_short, levels = c("proposed", "oracle", "overall", "changepoint_only", "cluster_only", "dqn"),
+                     labels = c("(i)", "(ii)", "(iii)", "(iv)", "(v)", "(vi)"))
+dat$Method <- factor(dat$Method, levels = c("proposed", "oracle", "overall", "changepoint_only", "cluster_only", "dqn"),
+                     labels = c("(i) Proposed", "(ii) Oracle", "(iii) DH", "(iv) Homogeneous", "(v) Stationary", "(vi) DRL"))
 labels(dat$Method_short)
 dat <- dat[`Effect Size` %in% effect_sizes,]
 dat$`Effect Size` <- factor(dat$`Effect Size`,
@@ -88,7 +86,27 @@ ggsave(paste0("output/real_optvalue_online_discounted_raw.pdf"), width = 10, hei
 ggsave(paste0("output/real_optvalue_online_average_raw.pdf"), width = 10, height = 3)
 
 
-
+dat_sub <- dat[Method %in% c("(i) Proposed", "(vi) DRL"),]
+dat_sub$Method <- factor(dat_sub$Method)
+levels(dat_sub$Method) <- c("Proposed", "DRL")
+(p <- ggplot(dat_sub, aes(Method, `Discounted Reward`, fill=Method)) + #, color=`Effect Size`
+    geom_boxplot() +
+    facet_grid(. ~ `Effect Size`) +
+    xlab("") +
+    ylab("Discounted Reward") +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 1),
+      panel.grid.major=element_line(colour="#d3d3d3"),
+      panel.grid.minor=element_line(colour="#d3d3d3"),
+      panel.background=element_blank(),
+      plot.title=element_text(size=18, face="bold"),
+      text=element_text(size=14),
+      axis.text.x=element_text(colour="black", size=13, angle = 0),
+      axis.text.y=element_text(colour="black", size=13),
+      plot.margin=grid::unit(c(0.3,0,-2,0), "mm")
+    ) +
+    scale_fill_startrek())
+ggsave(paste0("output/real_optvalue_online_discounted_raw_dqn.pdf"), width = 7, height = 2.5)
 
 
 
@@ -114,13 +132,16 @@ dat2$Method <- paste0("proposed - ", dat2$Method)
 dat2$Method_short <- dat2$Method
 dat2$Method_short <- factor(dat2$Method_short,
                       levels = c('proposed - oracle', 'proposed - overall',
-                                 "proposed - changepoint_only", 'proposed - cluster_only'),
-                      labels = c('(i)', '(ii)', '(iii)', '(iv)'))
+                                 "proposed - changepoint_only", 'proposed - cluster_only',
+                                 'proposed - dqn'),
+                      labels = c('(i)', '(ii)', '(iii)', '(iv)', '(v)'))
 dat2$Method <- factor(dat2$Method,
                        levels = c('proposed - oracle', 'proposed - overall',
-                                  "proposed - changepoint_only", 'proposed - cluster_only'),
+                                  "proposed - changepoint_only", 'proposed - cluster_only',
+                                  'proposed - dqn'),
                        labels = c('(i) Proposed - Oracle', '(ii) Proposed - DH',
-                                  '(iii) Proposed - Homogeneous', '(iv) Proposed - Stationary'))
+                                  '(iii) Proposed - Homogeneous', '(iv) Proposed - Stationary',
+                                  '(v) Proposed - DRL'))
 dat2$`Effect Size` <- factor(dat2$`Effect Size`,
                        levels = effect_sizes,
                        labels = effect_sizes_labels)
@@ -180,4 +201,8 @@ ggsave(paste0("output/real_optvalue_online_average.pdf"), width = 10, height = 3
 ggsave(paste0("output/real_optvalue_online_discounted.pdf"), width = 10, height = 2)
 
 
+dat2 %>% 
+  group_by(`Effect Size`, `Method`) %>% 
+  summarise(mean = mean(value_diff_discounted, na.rm = T),
+            sd = sd(value_diff_discounted, na.rm = T))
 
