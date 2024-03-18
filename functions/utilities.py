@@ -15,17 +15,17 @@ def h_in_IC(changepoints, T, h='1'):
         return (np.sqrt(np.sum(T - 1 - changepoints) / np.log(np.sum(T - 1 - changepoints))))
 
 
-def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun='no_scale', Kl_fun='Nlog(NT)/T', h='1', C_K = 2):
+def IC(loss, changepoints, g_index, N, T, K, C=2, loss_fun='no_scale', Kl_fun='Nlog(NT)/T', h='1', C_K = 0):
     '''
     Parameters
     ----------
     Kl_fun : Penalty on K. The default is 'NlogNT/T'. In older version of IC, this is 'logN'
     h : TYPE, optional
         DESCRIPTION. The default is '1'.
-    C: The coefficient in h function. Since we no long have the h term in the IC, the default is 0.
-    C_K : The coefficient in the penalty function Kl_fun. The default is 2. Note that I'm not sure how to set the default value. 
-          In theory, this value should be of order O(sqrt(log(NT))). I've tried on my side C_K=2 works well in an example where the penalty function with C_K=2 happends to equal to that in the BIC.
-          If C_K=2 doesn't work for you, you may consider change it to something else like O(sqrt(log(NT))).
+    C_K: The coefficient in h function. Since we no long have the h term in the IC, the default is 0.
+    C : The coefficient in the penalty function Kl_fun. The default is 2. Note that I'm not sure how to set the default value. 
+          In theory, this value should be of order O(log(NT)). I've tried on my side C_K=2 works well in an example where the penalty function with C_K=2 happends to equal to that in the BIC.
+          If C=2 doesn't work for you, you may consider change it to something else like O(log(NT)), O(sqrt(log(NT))), O(NT).
 
     '''
     # K = len(set(g_index))
@@ -48,11 +48,11 @@ def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun='no_scale', Kl_fun='N
     # print('(T-1 -changepoints)[np.s_[indicesList]]',(T-1 -changepoints)[np.s_[indicesList]])
     # print('np.log(np.sum(T-1 -changepoints)',np.log(np.sum(T-1 -changepoints)))
     print("ic",
-          loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C * h_in_IC(changepoints,
+          loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C_K * h_in_IC(changepoints,
                                                                                                          T), ', ', K,
           '*l', Kl, ', ', C, '* h=',
-          C * occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * h_in_IC(changepoints, T))
-    return loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C * h_in_IC(changepoints,
+          C_K * occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * h_in_IC(changepoints, T))
+    return loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C_K * h_in_IC(changepoints,
                                                                                                           T, h=h)
 
 

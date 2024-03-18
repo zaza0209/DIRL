@@ -828,7 +828,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
 #%% fit
 def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = None,kappa_min = None, kappa_interval=None,epsilon=0.1, K=2,
         C1=1, C2=1/2,  alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=3, C=0, Kl_fun = 'logN',
+        max_iter_gmr = 50, seed = 1, nthread=3, C=2, Kl_fun = 'logN',
         changepoints_init=None, g_index_init = None, clustering_warm_start=1,
         loss_path =0, threshold_type="maxcusum", nthread_B= None,  B=2000,
         init_cluster_method = 'kmeans',distance_metric="correlation", linkage = "average",
@@ -932,7 +932,7 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
 
 def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,epsilon=0.1,
         C1=1, C2=1/2, alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
-        max_iter_gmr = 50, seed = 1, nthread=0, C=0, Kl_fun = 'logN',  changepoints_init=None,
+        max_iter_gmr = 50, seed = 1, nthread=0, C=2, Kl_fun = 'logN',  changepoints_init=None,
         g_index_init_list = None, clustering_warm_start=1, loss_path =0,
         threshold_type="maxcusum", nthread_B= None, B=2000, init_cluster_method = 'kmeans',
         distance_metric="correlation", linkage = "average", changepoint_init_indi = 0,
