@@ -19,6 +19,26 @@ from joblib import Parallel, delayed
 from bisect import bisect_right
 import csv
 
+from collections import Counter
+
+
+def most_frequent(row):
+    """Finds the most frequent value in a NumPy array.
+    Args:
+      row: A NumPy row array.
+    Returns:
+      The most frequent value in the array.
+    """
+    # Get the counts of each element in the array.
+    counter = Counter(row)
+    counts_array = np.array(list(counter.values()))
+    # Find the index of the maximum count.
+    max_count = max(counts_array)
+    # If there are ties, randomly select one of the most frequent values.
+    # if np.count_nonzero(counts_array == max_count) > 1:
+    return np.random.choice([k for k, v in counter.items() if v == max_count])
+
+
 # from . import select_num_basis as cv
 
 
@@ -349,7 +369,38 @@ class q_learning():
         return optimal(opt_reward, opt_action)
 
 
-    def predict(self, States):
+    # def predict(self, States):
+    #     N = States.shape[0]
+    #     T = States.shape[1] - 1
+    #     Actions0 = np.zeros(shape=(N,T), dtype='int32')
+    #     # print("States =", States)
+    #     # print("create_design_matrix")
+    #     design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
+    #     # print("design_matrix0=", design_matrix0)
+    #     # print(design_matrix0[0,:].toarray())
+    #     opt_reward = np.ones(shape = (N*T,)) * (-999)
+    #     opt_action = np.zeros(shape = (N*T,), dtype = 'int32')
+    #     for a in np.unique(self.Actions):
+    #         a = int(a)
+    #         # if self.States0[a] is not None:
+    #         q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
+    #         # print(q_estimated0_a)
+    #         # should we update the optimal action?
+    #         better_action_indices = np.where(q_estimated0_a > opt_reward)
+    #         opt_action[better_action_indices] = a
+    #         # opt_action = np.argmax(np.vstack((opt_reward, q_estimated0_a)), axis=0)
+    #         opt_reward = np.maximum(opt_reward, q_estimated0_a)
+    #     optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
+    #     return optimal(opt_reward, opt_action)
+
+
+    def predict(self, States, majority_vote = False, model_list_to_vote = []):
+        '''
+        Predict the optimal action and reward based on input States.
+        :param model_list_to_vote: a list of optimal Q functions. Note that model_list_to_vote
+            should not be an empty list if majority_vote = True
+        :return:
+        '''
         N = States.shape[0]
         T = States.shape[1] - 1
         Actions0 = np.zeros(shape=(N,T), dtype='int32')
@@ -358,20 +409,48 @@ class q_learning():
         design_matrix0 = self.create_design_matrix(States, Actions0, type='current', pseudo_actions=None)
         # print("design_matrix0=", design_matrix0)
         # print(design_matrix0[0,:].toarray())
-        opt_reward = np.ones(shape = (N*T,)) * (-999)
-        opt_action = np.zeros(shape = (N*T,), dtype = 'int32')
-        for a in np.unique(self.Actions):
-            a = int(a)
-            # if self.States0[a] is not None:
-            q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
-            # print(q_estimated0_a)
-            # should we update the optimal action?
-            better_action_indices = np.where(q_estimated0_a > opt_reward)
-            opt_action[better_action_indices] = a
-            # opt_action = np.argmax(np.vstack((opt_reward, q_estimated0_a)), axis=0)
-            opt_reward = np.maximum(opt_reward, q_estimated0_a)
+
+        if not majority_vote:
+            opt_reward = np.ones(shape=(N * T,)) * (-999)
+            opt_action = np.zeros(shape=(N * T,), dtype='int32')
+            for a in np.unique(self.Actions):
+                a = int(a)
+                # if self.States0[a] is not None:
+                q_estimated0_a = self.q_function_list[a].predict(design_matrix0[0])
+                # print(q_estimated0_a)
+                # should we update the optimal action?
+                better_action_indices = np.where(q_estimated0_a > opt_reward)
+                opt_action[better_action_indices] = a
+                # opt_action = np.argmax(np.vstack((opt_reward, q_estimated0_a)), axis=0)
+                opt_reward = np.maximum(opt_reward, q_estimated0_a)
+
+        else:
+            n_models = len(model_list_to_vote)
+            opt_reward_alliter = np.ones(shape=(N * T, n_models)) * (-999)
+            opt_action_alliter = np.zeros(shape=(N * T, n_models), dtype='int32')
+            for n_model, m in enumerate(model_list_to_vote):
+                # print(n_model, m)
+                for a in np.unique(self.Actions):
+                    a = int(a)
+                    q_estimated0_a = m[a].predict(design_matrix0[0])
+                    # should we update the optimal action?
+                    better_action_indices = np.where(q_estimated0_a > opt_reward_alliter[:, n_model])
+                    opt_action_alliter[better_action_indices] = a
+                    opt_reward_alliter = np.maximum(opt_reward_alliter, q_estimated0_a)
+
+            # find the most common visited action
+            opt_action = np.apply_along_axis(most_frequent, axis=1, arr=opt_action_alliter)
+            opt_reward = np.ones(shape=(N * T, ))
+            # find out the optimal rewards corresponding to the majority voted optimal action.
+            # Take average of all optimal rewards as the final reward
+            for r in range(len(opt_action)):
+                row_action = opt_action_alliter[r,:]
+                opt_reward[r] = np.mean(opt_reward_alliter[r, np.where(row_action == opt_action[r])[0]])
+
+
         optimal = namedtuple("optimal", ["opt_reward", "opt_action"])
         return optimal(opt_reward, opt_action)
+
 
 #%%
 def split_train_test(n, fold = 5):

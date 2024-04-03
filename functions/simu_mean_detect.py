@@ -20,6 +20,7 @@ from skglm import GeneralizedLinearEstimator
 from skglm.penalties import MCPenalty, SCAD
 from skglm.datafits import Quadratic
 from itertools import product
+from copy import copy
 
 
 #%%
@@ -122,7 +123,7 @@ def clustering_marginal_dis(States, N, T, K, changepoints,Actions=None, g_index=
                 var[k] = np.var(y[k])
     return g_index
 
-def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
+def gmr(States, N, T, K, changepoints, Actions, g_index=None, max_iter_gmr = 50):
     '''
     mixutre regression model for normal conditional distribution
     Parameters
@@ -183,7 +184,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         # startTime = datetime.now()
         for i in range(N):
             # print('i', i)
-            Xistack = np.kron(np.eye(K*p,dtype=int),Xi[i])
+            Xistack = np.kron(np.eye(K*p,dtype=int), Xi[i])
             yhat = res.predict(Xistack)
             err = [[] for i in range(K)]
             t = Xi[i].shape[0]
@@ -199,7 +200,7 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
         if np.unique(g_index_new).shape[0] < K:
             i_tmp = -1*np.ones(len((np.setdiff1d(np.array(range(K)),np.unique(g_index_new)).tolist())))
             z=0
-            for k in (np.setdiff1d(np.array(range(K)),np.unique(g_index_new)).tolist()):
+            for k in (np.setdiff1d(np.array(range(K)), np.unique(g_index_new)).tolist()):
                 # print('i_tmp[',z,']',i_tmp[z],np.where(err_all[:,k] == min(err_all[:,k])))
                 smallest = 0
                 assign_ind = np.where(err_all[:,k] == min(err_all[:,k]))[0][0]
@@ -208,17 +209,18 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
                     smallest = smallest+1
                     # print(smallest)
                     assign_ind = np.where(err_all[:,k] == np.partition(err_all[:,k], smallest)[smallest])[0]
-                loss = loss + err_all[assign_ind,g_index_new[assign_ind]] - err_all[assign_ind,k]
+                loss = loss + err_all[assign_ind, g_index_new[assign_ind]] - err_all[assign_ind, k]
                 g_index_new[assign_ind] = k
                 i_tmp[z]=assign_ind
                 z = z+1
         # print('loss',loss, ', T',T, ', np.mean(T - changepoints - 1)',np.mean(T - changepoints - 1))
         loss = loss * np.mean(T - changepoints - 1)
         # print('loss',loss)
-        if np.prod(g_index == g_index_new):
-            # print('break')
-            break
-        elif not np.prod(g_index == g_index_new) or m == max_iter_gmr - 1:
+        # if np.prod(g_index == g_index_new):
+        #     break
+        # elif not np.prod(g_index == g_index_new) or m == max_iter_gmr - 1:
+        # print('m =', m)
+        if not m == max_iter_gmr - 1:
             loss = 0
             g_index = g_index_new.copy()
             mat_list = [[] for i in range(K)]
@@ -246,7 +248,9 @@ def gmr(States, N, T, K, changepoints,Actions, g_index=None, max_iter_gmr = 50):
             X = block_diag(*mat_list)
             y = np.vstack(y)
             res=reg.fit(X, y, sample_weight=weights)
-    return g_index, loss
+    num_iterations_clustering = m+1
+    # print("num_iterations_clustering_gmr:", num_iterations_clustering)
+    return g_index, loss, num_iterations_clustering
 
 def tuneK_wrap(K_list, States, N, T, changepoints,Actions,g_index=None,max_iter_gmr=20, C=5, is_tunek_wrap_parallel=1,Kl_fun='Nlog(NT)/T', C_K=2):
     '''
@@ -583,8 +587,8 @@ def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kapp
         out1, out2, p_values_by_kappa = zip(*Parallel(n_jobs=K)(delayed(run_k)(k) for k in range(K)))
         # print("finished run_k")
         # print("changepoint       =", out1)
-        print("p_values_by_kappa =", p_values_by_kappa)
-        print("p-value_final     =", out2)
+        # print("p_values_by_kappa =", p_values_by_kappa)
+        # print("p-value_final     =", out2)
         # tauk = out1[0][0]
         for k in range(K):
             tauk[k] = out1[k]
@@ -598,9 +602,9 @@ def changedistribution_detect2(g_index, States, N, T, kappa_max, kappa_min, kapp
             changepoints[(g_index == k), :] = tauk[k]
             p_values[k, :] = p_values_by_kappa[0]
             # p_value_cp[k] = p_value_cp[k]
-        print("changepoint       =", tauk)
-        print("p_values_by_kappa =", p_values_by_kappa)
-        print("p-value_final     =", p_values_cp)
+        # print("changepoint       =", tauk)
+        # print("p_values_by_kappa =", p_values_by_kappa)
+        # print("p-value_final     =", p_values_cp)
         # print('k',k)
     # print('is_cp_parallel', is_cp_parallel, ', finish time', datetime.now() - startTime, ', tauk', tauk)
     changepoints = changepoints.astype(int)
@@ -685,7 +689,7 @@ def changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min
 
     #%% compute test statistic for each cluster k, taking maximum over u
     def run_k(k, nthread_B=nthread_B):
-        States_k = States[(g_index == k), :, :]
+        States_k = States_s[(g_index == k), :, :]
         Actions_k = Actions[(g_index == k), :]
         p_values_by_kappa = []
         dfs = []
@@ -731,23 +735,34 @@ def changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min
             X = np.kron(np.eye(p, dtype=int), X)
             X = sparse.csr_matrix(X)
             y = np.vstack(np.array(y)).T.reshape(-1, )
-            if penalty_function == 'SCAD':
-                model = GeneralizedLinearEstimator(
-                    Quadratic(),
-                    SCAD(alpha=param['alpha'], gamma=param['gamma']),
-                )
-            elif penalty_function == 'MCP':
-                model = GeneralizedLinearEstimator(
-                    Quadratic(),
-                    MCPenalty(alpha=param['alpha'], gamma=param['gamma']),
-                )
-            model.fit(X, y)
-            nonzero_coef = np.where(abs(model.coef_) > 1e-4)[0]
-            df0 = len(nonzero_coef)
-            if df0 == 0:
-                print("All regression coefficients are shrunk to 0. Choose a smaller penalty.")
-                break
+
+            df0 = 0
+            while df0 == 0:
+                if penalty_function == 'SCAD':
+                    model = GeneralizedLinearEstimator(
+                        Quadratic(),
+                        SCAD(alpha=param['alpha'], gamma=param['gamma']),
+                    )
+                elif penalty_function == 'MCP':
+                    model = GeneralizedLinearEstimator(
+                        Quadratic(),
+                        MCPenalty(alpha=param['alpha'], gamma=param['gamma']),
+                    )
+                model.fit(X, y)
+                nonzero_coef = np.where(abs(model.coef_) > 1e-4)[0]
+                df0 = len(nonzero_coef)
+                if df0 == 0:
+                    print("All regression coefficients are shrunk to 0. Increasing alpha.")
+                    # decrease alpha to avoid all zero coefficients
+                    ind = param_grid['alpha'].index(param['alpha'])
+                    ind -= 1
+                    if ind == -1:
+                        break
+                        print("Choose a smaller alpha to avoid all zero regression coefficients.")
+                    param['alpha'] = param_grid['alpha'][ind]
+                    # break
             # df0 = (2+2*p)*p
+            print("k = ", k, ", selected covariates in regression:", nonzero_coef)
             # compute likelihood ratio stat
             var0 = np.linalg.norm(y - model.predict(X), ord=2) ** 2 / y.shape[0]
             if var0 < np.finfo(np.float64).tiny:
@@ -792,7 +807,7 @@ def changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min
             p_value = np.mean(maxcusum < sample_stat)
             p_values_by_kappa.append(p_value)
             dfs.append(df0)
-            print("kappa     =", kappa)
+            print('k =', k, "\nkappa     =", kappa)
             print("maxcusum  =", round(maxcusum, 5))
             print("threshold =", round(threshold, 5))
             print("p_value   =", round(p_value, 5))
@@ -837,11 +852,26 @@ def changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min
     # maxcusum_list = np.zeros(K)
     kappa_list = np.arange(kappa_min, kappa_max, step=kappa_interval, dtype=np.int32)
 
+
+    # normalize states by each cluster during change point detection
+    States_s = copy(States)
+    def transform(x):
+        return (x - np.mean(x)) / np.std(x)
+    for k in range(K):
+        for pp in range(p):
+            States_s[(g_index == k), :, pp] = transform(States[(g_index == k), :, pp])
+
+
     startTime = datetime.now()
     if is_cp_parallel:
         # print("running run_k")
-        out1, out2, p_values_by_kappa, dfs_out = zip(*Parallel(n_jobs=K)(delayed(run_k)(k) for k in range(K)))
-        print("p_values_by_kappa =", p_values_by_kappa)
+        out = Parallel(n_jobs=K)(delayed(run_k)(k) for k in range(K))
+        out1 = [item[0] for item in out]
+        out2 = [item[1] for item in out]
+        p_values_by_kappa = [item[2] for item in out]
+        dfs_out = [item[3] for item in out]
+        # out1, out2, p_values_by_kappa, dfs_out = zip(*Parallel(n_jobs=K)(delayed(run_k)(k) for k in range(K)))
+        # print("p_values_by_kappa =", p_values_by_kappa)
         # tauk = out1[0][0]
         for k in range(K):
             tauk[k] = out1[k]
@@ -858,9 +888,9 @@ def changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min
 
     print("changepoint       =", tauk)
     print("p_values_by_kappa =", p_values_by_kappa)
-    print("p-value_final     =", p_values_cp)
+    # print("p_values_cp       =", p_values_cp)
     print("dfs               =", dfs)
-        # print('k',k)
+          # print('k',k)
     # print('is_cp_parallel', is_cp_parallel, ', finish time', datetime.now() - startTime, ', tauk', tauk)
     changepoints = changepoints.astype(int)
     sys.stdout.flush()
@@ -970,7 +1000,7 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
                             N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K,
                             param_grid, nfold, penalty_function, select_param_interval,
                             cusum_forward, cusum_backward, C1=1, C2=1/2,
-                            max_iter=30,
+                            max_iter=30, max_iter_gmr=50,
                             init_cluster_range=None, nthread=0, C=0, Kl_fun ='Nlog(NT)/T', C_K = 2,
                             g_index_init = None, clustering_warm_start=1,
                             loss_path =0, threshold_type="maxcusum",
@@ -1001,13 +1031,17 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
     if loss_path:
         loss_list = np.zeros(max_iter+1)
     changepoints_0 = np.zeros(N)
+    changepoints_all = []
+    clusters_all = []
     p_value_cp_all = []
     p_values_all = []
     dfs_all = []
+    num_iterations_clustering_all = []
     iter_num=0
     for m in range(max_iter):
-        # print("======= m", m, "=========")
-        out=changepoint_detect(g_index = g_index_0,States=States, Actions=Actions, N=N, T=T,
+        print("============== iteration", m + 1, "K =", K_path[-1], "================")
+
+        out=changepoint_detect(g_index = g_index_0, States=States, Actions=Actions, N=N, T=T,
                                kappa_max=kappa_max, kappa_min=kappa_min, kappa_interval=kappa_interval,
                                epsilon=epsilon, example=example,
                                param_grid=param_grid, nfold=nfold, penalty_function=penalty_function,
@@ -1015,21 +1049,38 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
                                cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                C1=C1, C2=C2,nthread=nthread, break_early=break_early)
         changepoints = np.array(out[0])
+        # print("changepoints =", changepoints.flatten())
+        changepoints_all.append(changepoints.flatten())
+        p_values_cp = np.array(out[2])
+        p_values = np.array(out[3])
+        try:
+            dfs = np.array(out[4])
+        except:
+            dfs = np.array(2 * (p + 1) * p, shape=p_values.shape)
+        p_value_cp_all.append(p_values_cp)
+        p_values_all.append(p_values)
+        dfs_all.append(dfs)
         if loss_path:
             loss_list[m] = goodnessofClustering(States, N, T,changepoints, Actions, g_index_0)
-        # print('cp',changepoints)
-        # print('g ori', g_index_0,'changepoints_0',changepoints_0)
+
         if clustering_warm_start:
-            g_index, loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index_0,
-                                 N=N, T=T, K=K,changepoints=changepoints)
+            g_index, loss, num_iterations_clustering = clustering(States=States, Actions=Actions, example=example, g_index=g_index_0,
+                                 N=N, T=T, K=K, changepoints=changepoints, max_iter_gmr = max_iter_gmr)
         else:
-            g_index, loss = clustering(States=States, Actions=Actions, example=example, g_index=None,
-                                 N=N, T=T, K=K, changepoints=changepoints)
+            g_index, loss, num_iterations_clustering = clustering(States=States, Actions=Actions, example=example, g_index=None,
+                                 N=N, T=T, K=K, changepoints=changepoints, max_iter_gmr = max_iter_gmr)
+        print("num_iterations_clustering =", num_iterations_clustering)
+        num_iterations_clustering_all.append(num_iterations_clustering)
+        print("clusters =", g_index.flatten())
+        clusters_all.append(g_index.flatten())
+
         if type(g_index) is int:
             g_index = np.array([g_index])
         # print('g',g_index)
         if (m != 0 and(np.prod(changepoints == changepoints_0) and adjusted_rand_score(g_index_0.flatten(), g_index.flatten())) or m == max_iter -1):
             iter_num = m
+            changepoints_0 = changepoints.copy()
+            g_index_0 = g_index.copy()
             break
         else:
             changepoints_0 = changepoints.copy()
@@ -1045,6 +1096,8 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
                              cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                              C1=C1, C2=C2, nthread=nthread, break_early=break_early)
     changepoints = np.array(out[0])
+    print("changepoints =", changepoints.flatten())
+    changepoints_all.append(changepoints.flatten())
     p_values_cp = np.array(out[2])
     p_values = np.array(out[3])
     try:
@@ -1058,23 +1111,48 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
     loss = goodnessofClustering(States, N, T, changepoints, Actions, g_index)
     if loss_path:
         loss_list[m + 1] = goodnessofClustering(States, N, T, changepoints, Actions, g_index_0)
-    ic = ut.IC(loss=loss, changepoints=changepoints,g_index= g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun, C_K = C_K)
+    ic = ut.IC(loss=loss, changepoints=changepoints,g_index= g_index, N=N, T=T, K=K_path[-1], C=C, Kl_fun=Kl_fun, C_K = C_K)
     if loss_path:
         loss_list = loss_list[:iter_num]
     # print(changepoints_0)
     p_value_cp_all = np.array(p_value_cp_all)
-    print("p_value_cp_all =", p_value_cp_all)
+    # print("p_value_cp_all =", p_value_cp_all)
     p_values_all = np.hstack(p_values_all) #np.array(p_values_all)
     print("p_values_all =", p_values_all)
     dfs_all = np.hstack(dfs_all) #np.array(p_values_all)
     print("dfs_all =", dfs_all)
+    print("num_iterations_clustering_all =", num_iterations_clustering_all)
+    print("changepoints_all =", changepoints_all)
+    print("clusters_all =", clusters_all)
     try:
-        result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "loss_list", "IC", 'K_path', "p_values_cp", "p_values", "df_all"])
-        return result(iter_num, g_index, changepoints.flatten(), loss, loss_list, ic, K_path, p_value_cp_all, p_values_all, dfs_all)
+        result = {"iter_num": iter_num, "g_index": g_index, "changepoints": changepoints.flatten(),
+                  "loss": loss, "loss_list": loss_list, "IC": ic, 'K_path': K_path,
+                  "p_values_cp": p_value_cp_all, "p_values": p_values_all, "df_all": dfs_all,
+                  "num_iterations_clustering_all": num_iterations_clustering_all,
+                  "changepoints_all": changepoints_all, "clusters_all": clusters_all
+                  }
+        return result
+        #
+        # result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "loss_list", "IC", 'K_path',
+        #                                "p_values_cp", "p_values", "df_all", "num_iterations_clustering_all",
+        #                                "changepoints_all", "clusters_all"])
+        # return result(iter_num, g_index, changepoints.flatten(), loss, loss_list, ic, K_path,
+        #               p_value_cp_all, p_values_all, dfs_all, num_iterations_clustering_all,
+        #               changepoints_all, clusters_all)
     except:
-        result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "IC", 'K_path', "p_values_cp", "p_values", "df_all"])
-        return result(iter_num, g_index, changepoints.flatten(), loss, ic, K_path, p_value_cp_all, p_values_all, dfs_all)
-
+        # result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "IC", 'K_path', "p_values_cp",
+        #                                "p_values", "df_all", "num_iterations_clustering_all",
+        #                                "changepoints_all", "clusters_all"])
+        # return result(iter_num, g_index, changepoints.flatten(), loss, ic, K_path, p_value_cp_all,
+        #               p_values_all, dfs_all, num_iterations_clustering_all,
+        #               changepoints_all, clusters_all)
+        result = {"iter_num": iter_num, "g_index": g_index, "changepoints": changepoints.flatten(),
+                  "loss": loss, "IC": ic, 'K_path': K_path,
+                  "p_values_cp": p_value_cp_all, "p_values": p_values_all, "df_all": dfs_all,
+                  "num_iterations_clustering_all": num_iterations_clustering_all,
+                  "changepoints_all": changepoints_all, "clusters_all": clusters_all
+                  }
+        return result
 
 
 def changepointsNclustering(example, clustering, changepoint_detect, States, Actions,
@@ -1086,12 +1164,14 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
                             loss_path = 0, threshold_type="maxcusum", changepoint_init_indi = 0,
                             is_only_cluster = 0, break_early=1):# is_only_cluster: for evalutation "only_cluster" type
     # print("Kl_fun = ", Kl_fun)
+    K_path = []
     if loss_path:
         loss_list = np.zeros(max_iter+1)
     if changepoint_init_indi == 1:
         g_index_0 = np.arange(0, N)
     else:
         g_index_0 = np.zeros([N])
+    K_path.append(len(set(g_index_0)))
 
     if changepoints_init is None:
         # out = changepoint_detect(g_index = g_index_0,States=States, N=N, T=T,
@@ -1106,18 +1186,31 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
     else:
         changepoints_0 = changepoints_init
     g_index_0 = g_index_init
+    changepoints_all = []
+    clusters_all = []
     p_value_cp_all = []
     p_values_all = []
     dfs_all = []
+    num_iterations_clustering_all = []
     iter_num = 0
     for m in range(max_iter):
         print("======= iteration ", m+1, "=========")
         if clustering_warm_start == 0:
-            g_index,loss = clustering(States=States, Actions=Actions,example=example,
-                                  N=N, T=T, K=K,changepoints=changepoints_0)
+            '''
+            To Liyuan: what does clustering_warm_start mean here? If equals 0,
+            it seems that the the clustering algorithm in iteration m+1 is not starting
+            from the clusters in iteration m 
+            '''
+            g_index,loss,num_iterations_clustering = clustering(States=States, Actions=Actions,example=example,
+                                  N=N, T=T, K=K,changepoints=changepoints_0, max_iter_gmr = max_iter_gmr)
         else:
-            g_index,loss = clustering(States=States, Actions=Actions,example=example, g_index=g_index_0,
-                                  N=N, T=T, K=K,changepoints=changepoints_0)
+            g_index,loss,num_iterations_clustering = clustering(States=States, Actions=Actions,example=example, g_index=g_index_0,
+                                  N=N, T=T, K=K,changepoints=changepoints_0, max_iter_gmr = max_iter_gmr)
+        print("num_iterations_clustering =", num_iterations_clustering)
+        num_iterations_clustering_all.append(num_iterations_clustering)
+        print("clusters =", g_index.flatten())
+        clusters_all.append(g_index.flatten())
+
         # print("g_index update",g_index)
         if type(g_index) is int:
             g_index = np.array([g_index])
@@ -1135,6 +1228,8 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
                                    cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                    C1=C1, C2=C2, nthread=nthread, break_early=break_early)
             changepoints = np.array(out[0])
+            print("changepoints =", changepoints.flatten())
+            changepoints_all.append(changepoints.flatten())
             p_values_cp = np.array(out[2])
             p_values = np.array(out[3])
             try:
@@ -1160,13 +1255,14 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
                 else:
                     loss = loss_list[m]
 
-            ic = ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K, C=C, Kl_fun=Kl_fun, C_K = C_K)
+            ic = ut.IC(loss=loss, changepoints=changepoints, g_index=g_index, N=N, T=T, K=K_path[-1], C=C, Kl_fun=Kl_fun, C_K = C_K)
             # print("loss", loss, "ic", ic)
             iter_num = m
             break
         else:
             changepoints_0 = changepoints.copy()
             g_index_0 = g_index
+            K_path.append(len(set(g_index_0)))
         iter_num = m
     if loss_path:
         loss_list = loss_list[:iter_num]
@@ -1177,12 +1273,34 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
     print("p_values_all =", p_values_all)
     dfs_all = np.hstack(dfs_all) #np.array(p_values_all)
     print("dfs_all =", dfs_all)
+    print("num_iterations_clustering_all =", num_iterations_clustering_all)
+    print("changepoints_all =", changepoints_all)
+    print("clusters_all =", clusters_all)
     try:
-        result = namedtuple("result", ["iter_num", "g_index", "changepoints","loss", "loss_list", "IC", "p_values_cp", "p_values", "df_all"])
-        return result(iter_num, g_index, changepoints.flatten(), loss, loss_list, ic, p_value_cp_all, p_values_all, dfs_all)
+        result = {"iter_num": iter_num, "g_index": g_index, "changepoints": changepoints.flatten(),
+                  "loss": loss, "loss_list": loss_list, "IC": ic, 'K_path': K_path,
+                  "p_values_cp": p_value_cp_all, "p_values": p_values_all, "df_all": dfs_all,
+                  "num_iterations_clustering_all": num_iterations_clustering_all,
+                  "changepoints_all": changepoints_all, "clusters_all": clusters_all
+                  }
+        return result
     except:
-        result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "IC", "p_values_cp", "p_values", "df_all"])
-        return result(iter_num, g_index, changepoints.flatten(), loss, ic, p_value_cp_all, p_values_all, dfs_all)
+        result = {"iter_num": iter_num, "g_index": g_index, "changepoints": changepoints.flatten(),
+                  "loss": loss, "IC": ic, 'K_path': K_path,
+                  "p_values_cp": p_value_cp_all, "p_values": p_values_all, "df_all": dfs_all,
+                  "num_iterations_clustering_all": num_iterations_clustering_all,
+                  "changepoints_all": changepoints_all, "clusters_all": clusters_all
+                  }
+        return result
+    # try:
+    #     result = namedtuple("result", ["iter_num", "g_index", "changepoints","loss", "loss_list", "IC", "p_values_cp", "p_values", "df_all", "num_iterations_clustering_all"])
+    #     return result(iter_num, g_index, changepoints.flatten(), loss, loss_list, ic, p_value_cp_all, p_values_all, dfs_all, num_iterations_clustering_all)
+    # except:
+    #     result = namedtuple("result", ["iter_num", "g_index", "changepoints", "loss", "IC", "p_values_cp", "p_values", "df_all", "num_iterations_clustering_all"])
+    #     return result(iter_num, g_index, changepoints.flatten(), loss, ic, p_value_cp_all, p_values_all, dfs_all, num_iterations_clustering_all)
+
+
+
 
 #%% fit
 def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min = None, kappa_interval=None,
@@ -1243,10 +1361,9 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
                                          nthread_B = nthread_B, B=B, is_cp_parallel=is_cp_parallel, break_early=break_early)
 
         elif example == "cdist_sparse":
-            return changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min,kappa_interval,
+            return changedistribution_detect_sparse(g_index, States, N, T, kappa_max, kappa_min, kappa_interval,
                                         param_grid, nfold, penalty_function, select_param_interval,
-                                        epsilon, Actions,
-                                        cusum_forward=None, cusum_backward=None,
+                                        epsilon, Actions, cusum_forward=None, cusum_backward=None,
                                         C1=None, C2=None, alpha=alpha, df=df,nthread=nthread, threshold_type=threshold_type,
                                         nthread_B = nthread_B, B=B, is_cp_parallel=is_cp_parallel, break_early=break_early)
 
@@ -1281,23 +1398,26 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
                                          N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K,
                                          param_grid, nfold, penalty_function, select_param_interval,
                                          cusum_forward, cusum_backward, C1, C2,
-                                         max_iter, max_iter_gmr, nthread, C, Kl_fun , C_K,
+                                         max_iter, max_iter_gmr, nthread, C, Kl_fun, C_K,
                                          changepoints_init, g_index_init, clustering_warm_start,
-                                         loss_path,
-                                         threshold_type, changepoint_init_indi, is_only_cluster, break_early)
+                                         loss_path, threshold_type,
+                                         changepoint_init_indi, is_only_cluster,
+                                         break_early)
 
     else:
         result = clusteringNchangepoints(example, clustering, changepoint_detect, States,
                                          Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K,
                                          param_grid, nfold, penalty_function, select_param_interval,
-                                         cusum_forward, cusum_backward, C1, C2, max_iter,
-                                         init_cluster_range, nthread, C, Kl_fun,C_K,
+                                         cusum_forward, cusum_backward, C1, C2,
+                                         max_iter, max_iter_gmr, init_cluster_range, nthread, C, Kl_fun, C_K,
                                          g_index_init, clustering_warm_start,
                                          loss_path, threshold_type,
-                                         init_cluster_method,
-                                         distance_metric, linkage)
+                                         init_cluster_method, distance_metric, linkage,
+                                         break_early)
 
     return result # , datetime.now() - out_startTime
+
+
 
 def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,
         epsilon=0.1, param_grid ={"alpha": [0.001, 0.01], "gamma": [0.1, 10]}, nfold = 5, penalty_function = 'SCAD', select_param_interval = 5,
@@ -1379,6 +1499,64 @@ def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints",
 
 
 
+
+def fit_and_tuneK_each_iter(K_list, States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,
+        epsilon=0.1, param_grid ={"alpha": [0.001, 0.01], "gamma": [0.1, 10]}, nfold = 5, penalty_function = 'SCAD', select_param_interval = 5,
+        C1=1, C2=1/2, alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
+        max_iter_gmr = 50, seed = 1, nthread=0, C=1, Kl_fun = 'Nlog(NT)/T', C_K = 0, changepoints_init=None,
+        g_index_init_list = None, clustering_warm_start=1, loss_path =0,
+        threshold_type="maxcusum", nthread_B= None, B=2000, init_cluster_method = 'kmeans',
+        distance_metric="correlation", linkage = "average", changepoint_init_indi = 0,
+        is_only_cluster = 0, is_cp_parallel=0,
+        only_best=1, is_tune_parallel=0, is_tunek_wrap_parallel=0, break_early=1):
+    '''
+    In each iteration of the DIRL algorithm, tune the best K during the clutering step.
+    This is in contrast with the function fit_tuneK which fixes K during DIRL, computes
+    the IC values after all iterations, and finally chooses the best K.
+    '''
+    # out_startTime=datetime.now()
+
+    # keep all results
+    res_all = {}
+    K_best_list = []
+    if g_index_init_list is None:
+        g_index_init_list = [None]*len(K_list)
+    #%%
+    def run_K(K):
+        out = fit(States, Actions, example, init, kappa_max, kappa_min, kappa_interval,
+                  epsilon, K, param_grid, nfold, penalty_function, select_param_interval,
+                  C1, C2, alpha, df, 1, init_cluster_range, # 1 stands for only run one iteration
+                  max_iter_gmr, seed, nthread, C, Kl_fun, C_K,
+                  changepoints_init, g_index_init_list[K_list.index(K)], clustering_warm_start,
+                  loss_path, threshold_type, nthread_B, B,
+                  init_cluster_method, distance_metric, linkage,
+                  changepoint_init_indi, is_only_cluster, is_cp_parallel, is_tunek_wrap_parallel, break_early)
+        return out
+
+    # for each DIRL iteration, we select K
+    for iteration in range(max_iter):
+        res_all[iteration] = {}
+        IC_list = []
+        # g_index_init_list = []
+        for K in K_list:
+            out = run_K(K)
+            res_all[iteration][K] = out
+            IC_list.append(out['IC'][0])
+            g_index_init_list[K_list.index(K)] = out['g_index'].squeeze()
+            print('K', K, ', loss:', out['loss'], ', IC:', out['IC'][0])
+        # find the best K with the largest IC
+        K_best = K_list[IC_list.index(max(IC_list))]
+        K_best_list.append(K_best)
+        K = K_best
+        # extract cp and clusters for the next iteration
+        changepoints_init = res_all[iteration][K_best]['changepoints']
+        print('Best K', K_best, 'in iteration', iteration)
+
+    #%%
+    result = {"max_iter": max_iter, 'K_best_list': K_best_list, "results_all": res_all,
+              'changepoints_init': changepoints_init, 'g_index_init_list': g_index_init_list}
+
+    return result
 
 
 
