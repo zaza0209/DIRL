@@ -1,10 +1,17 @@
 # -*- coding:utf-8 -*-
 #!/usr/bin/python
 import platform, sys, os, pickle, re
-sys.path.append('~/.local/lib64/python3.6/site-packages')
-sys.path.append('/usr/lib64/python3.6/site-packages') 
+plat = platform.platform()
+if plat == 'Windows-10-10.0.14393-SP0': ##local
+    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/final_perf")
+    sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
+    os.chdir("/home/huly/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("/home/huly/heterRL")
+else:
+    os.chdir("/home/huly0209_gmail_com/heterRL/simulation/final_perf")
+    sys.path.append("/home/huly0209_gmail_com/heterRL")
 import numpy as np
-sys.path.append('/home/xx/heterRL')
 import functions.simulate_data_1d as sim
 from datetime import datetime
 import functions.simu_mean_detect as mean_detect
@@ -29,7 +36,6 @@ reward_setting = 'homo'
 print('init',init,'N',N)
 B=2000
 
-startTime = datetime.now()
 # %% environment setup
 # create folder under seed if not existing
 
@@ -37,7 +43,7 @@ def setpath(trans_setting, init = "true clustering"):
     #os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/toyexample/error")
     if not os.path.exists('results'):
         os.makedirs('results', exist_ok=True)           
-    path_name = './strong_threshold_'+ threshold_type+'/sim_result_trans' + trans_setting +'/N' + str(N) +'/T_' + str(T)+'_init_'+init+\
+    path_name = 'results/strong_threshold_'+ threshold_type+'/sim_result_trans' + trans_setting +'/N' + str(N) +'/T_' + str(T)+'_init_'+init+\
                 '_1d/cov'+str(cov) + '/seed'+str(seed)   
     if not os.path.exists(path_name):
         os.makedirs(path_name, exist_ok=True)
@@ -149,6 +155,7 @@ def evaluate(changepoints_true, g_index, predict, N, T):
     cluster_err = adjusted_rand_score(changepoints_true, g_index)
     return changepoint_err, cluster_err
 
+startTime = datetime.now()
 #%% 1. init with true clustering
 if init == "true_clustering":
     out = mean_detect.fit(States, Actions, example="cdist", seed = seed,
@@ -225,10 +232,21 @@ changepoint_err, ARI = evaluate(changepoints_true.squeeze(),
                                 out[1].squeeze(), out[2].squeeze(), N, T)
 print('changepoint_err',changepoint_err, 'ARI',ARI)
 #%%
-print('Finished. Time: ', datetime.now() - startTime)
+run_time =  datetime.now() - startTime
+print('Finished. Time: ',run_time)
 print('path', os.getcwd())
-# file_name = "seed_"+str(seed)+".dat"
-with open(file_name, "wb") as f:
-    pickle.dump({'changepoints':out.changepoints, 'clustering':out.g_index, 
-                 'cp_err':changepoint_err,'ARI':ARI,
-                 'loss':out.loss}, f)
+if init == "tuneK_iter":
+    with open(file_name, "wb") as f:
+        pickle.dump({'changepoints':out.changepoints, 'clustering':out.g_index, 
+                     'cp_err':changepoint_err,'ARI':ARI,
+                     'iter_num':out.iter_num,
+                     'K_path':out.K_path,
+                     "run_time":run_time,
+                     'loss':out.loss}, f)
+else:
+    with open(file_name, "wb") as f:
+        pickle.dump({'changepoints':out.changepoints, 'clustering':out.g_index, 
+                     'cp_err':changepoint_err,'ARI':ARI,
+                     'iter_num':out.iter_num,
+                     "run_time":run_time,
+                     'loss':out.loss}, f)

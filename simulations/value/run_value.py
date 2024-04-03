@@ -348,7 +348,7 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                                     seed = seed, init = "clustering", epsilon=epsilon,  nthread=nthread,
                                     kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
                                     K=K_list, init_cluster_range = T_length-1-kappa_min,
-                                    is_cp_parallel=is_cp_parallel, C=0)
+                                    is_cp_parallel=is_cp_parallel, C=2)
                 # print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
                 # changepoints = best_out[2]
                 cp_current = np.repeat(int(np.max(cp_current)), N)+ out.changepoints #change_point_detected['integral_emp']

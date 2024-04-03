@@ -9,9 +9,9 @@ print(plat)
 if plat == 'Windows-10-10.0.14393-SP0': ##local
     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/final_perf")
     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
-elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
-    os.chdir("/home/xx/heterRL/tuneK_iterations/final_perf")
-    sys.path.append("/home/xx/heterRL")
+elif plat == 'Windows-10-10.0.22621-SP0':  # biostat cluster
+    # os.chdir("/home/xx/heterRL/tuneK_iterations/final_perf")
+    sys.path.append("D:\\OneDrive\\PhD\\DIRL\\IHS\\simu\\simu_anonymous")
 else:
     os.chdir("/home/xx/heterRL/tuneK_iterations/final_perf")
     sys.path.append("/home/xx/heterRL")
