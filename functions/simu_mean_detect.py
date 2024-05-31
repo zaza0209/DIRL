@@ -996,6 +996,7 @@ def permutation_test(States_ori, Actions_ori, g_index, k, u, nthread_B=1):
 
 #%% loops
 # initilize with a clustering memembership
+<<<<<<< Updated upstream
 def clusteringNchangepoints(example, clustering, changepoint_detect, States, Actions,
                             N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K,
                             param_grid, nfold, penalty_function, select_param_interval,
@@ -1004,6 +1005,14 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
                             init_cluster_range=None, nthread=0, C=0, Kl_fun ='Nlog(NT)/T', C_K = 2,
                             g_index_init = None, clustering_warm_start=1,
                             loss_path =0, threshold_type="maxcusum",
+=======
+def clusteringNchangepoints(example, clustering, changepoint_detect, States,
+                            Actions, N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
+                            cusum_backward, C1=1, C2=1/2, max_iter=30,
+                            init_cluster_range=None, nthread=0, C=0, Kl_fun ='sqrtN',
+                            g_index_init = None,clustering_warm_start=1,
+                            loss_path =0, threshold_type="maxcusum", 
+>>>>>>> Stashed changes
                             init_cluster_method = 'kmeans',
                             distance_metric="correlation", linkage = "average", break_early=1):
     K_path = []
@@ -1156,10 +1165,16 @@ def clusteringNchangepoints(example, clustering, changepoint_detect, States, Act
 
 
 def changepointsNclustering(example, clustering, changepoint_detect, States, Actions,
+<<<<<<< Updated upstream
                             N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K,
                             param_grid, nfold, penalty_function, select_param_interval,
                             cusum_forward, cusum_backward, C1=1, C2=1/2,
                             max_iter=30, max_iter_gmr = 50, nthread=0, C=0, Kl_fun ='Nlog(NT)/T', C_K = 2,
+=======
+                            N, T, p, epsilon, kappa_max, kappa_min, kappa_interval, K, cusum_forward,
+                            cusum_backward, C1=1, C2=1/2,
+                            max_iter=30, max_iter_gmr = 50, nthread=0, C=0, Kl_fun ='sqrtN',
+>>>>>>> Stashed changes
                             changepoints_init=None, g_index_init = None, clustering_warm_start=1,
                             loss_path = 0, threshold_type="maxcusum", changepoint_init_indi = 0,
                             is_only_cluster = 0, break_early=1):# is_only_cluster: for evalutation "only_cluster" type
@@ -1228,6 +1243,7 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
                                    cusum_forward=cusum_forward, cusum_backward=cusum_backward,
                                    C1=C1, C2=C2, nthread=nthread, break_early=break_early)
             changepoints = np.array(out[0])
+<<<<<<< Updated upstream
             print("changepoints =", changepoints.flatten())
             changepoints_all.append(changepoints.flatten())
             p_values_cp = np.array(out[2])
@@ -1241,6 +1257,8 @@ def changepointsNclustering(example, clustering, changepoint_detect, States, Act
         p_value_cp_all.append(p_values_cp)
         p_values_all.append(p_values)
         dfs_all.append(dfs)
+=======
+>>>>>>> Stashed changes
         if loss_path:
             loss_list[m] = goodnessofClustering(States, N, T, changepoints, Actions, g_index)
         if m == 0:
@@ -1307,7 +1325,11 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
         epsilon=0.1, K=2,
         param_grid ={"alpha": [0.001, 0.01], "gamma": [0.1, 10]}, nfold = 5, penalty_function = 'SCAD', select_param_interval = 5,
         C1=1, C2=1/2,  alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
+<<<<<<< Updated upstream
         max_iter_gmr = 50, seed = 1, nthread=3, C=0, Kl_fun = 'Nlog(NT)/T', C_K=2,
+=======
+        max_iter_gmr = 50, seed = 1, nthread=3, C=1, Kl_fun = 'sqrtN',
+>>>>>>> Stashed changes
         changepoints_init=None, g_index_init = None, clustering_warm_start=1,
         loss_path =0, threshold_type="maxcusum", nthread_B= None,  B=2000,
         init_cluster_method = 'kmeans', distance_metric="correlation", linkage = "average",
@@ -1412,17 +1434,28 @@ def fit(States, Actions, example = "cdist", init = "changepoints", kappa_max = N
                                          max_iter, max_iter_gmr, init_cluster_range, nthread, C, Kl_fun, C_K,
                                          g_index_init, clustering_warm_start,
                                          loss_path, threshold_type,
+<<<<<<< Updated upstream
                                          init_cluster_method, distance_metric, linkage,
                                          break_early)
 
     return result # , datetime.now() - out_startTime
+=======
+                                         init_cluster_method,
+                                         distance_metric, linkage)
+    
+    return result 
+>>>>>>> Stashed changes
 
 
 
 def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints", kappa_max = None, kappa_min=None,kappa_interval=None,
         epsilon=0.1, param_grid ={"alpha": [0.001, 0.01], "gamma": [0.1, 10]}, nfold = 5, penalty_function = 'SCAD', select_param_interval = 5,
         C1=1, C2=1/2, alpha = 0.01, df=None, max_iter=1, init_cluster_range=None,
+<<<<<<< Updated upstream
         max_iter_gmr = 50, seed = 1, nthread=0, C=0, Kl_fun = 'Nlog(NT)/T', C_K = 2, changepoints_init=None,
+=======
+        max_iter_gmr = 50, seed = 1, nthread=0, C=1, Kl_fun = 'sqrtN',  changepoints_init=None,
+>>>>>>> Stashed changes
         g_index_init_list = None, clustering_warm_start=1, loss_path =0,
         threshold_type="maxcusum", nthread_B= None, B=2000, init_cluster_method = 'kmeans',
         distance_metric="correlation", linkage = "average", changepoint_init_indi = 0,
@@ -1486,15 +1519,20 @@ def fit_tuneK(K_list, States, Actions, example = "cdist", init = "changepoints",
                 IC_max = IC_model[K_list.index(K)].IC
                 K_max = K
                 best_model = IC_model[K_list.index(K)]
-            #%%
+    #%%
     print('bestK:', K_max)
     if only_best:
         tunningres = namedtuple("tunningres", ["best_K", "IC", "best_model"])
+<<<<<<< Updated upstream
         return tunningres(K_max, IC_max, best_model) #datetime.now() - out_startTime
+=======
+        return tunningres(K_max, IC_max, best_model) #, datetime.now() - out_startTime
+>>>>>>> Stashed changes
     else:
         tunningres = namedtuple("tunningres", ["K", "IC", "best_model", "models",
                                                "IC_model", "loss_model"])
         return tunningres(K_max, IC_max, res[K_max], res, IC_model,
+<<<<<<< Updated upstream
                           loss_model) #, datetime.now() - out_startTime
 
 
@@ -1701,3 +1739,6 @@ def grid_search_cv(States, Actions, param_grid,
     print("selected_param:", selected_param)
 
     return {'selected_param': selected_param, 'test_error': test_error}
+=======
+                          loss_model)  
+>>>>>>> Stashed changes

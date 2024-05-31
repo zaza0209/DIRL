@@ -15,6 +15,7 @@ def h_in_IC(changepoints, T, h='1'):
         return (np.sqrt(np.sum(T - 1 - changepoints) / np.log(np.sum(T - 1 - changepoints))))
 
 
+<<<<<<< Updated upstream
 # def IC(loss, changepoints, g_index, N, T, K, C=2, loss_fun='no_scale', Kl_fun='Nlog(NT)/T', h='1', C_K = 0):
 #     '''
 #     Parameters
@@ -56,16 +57,24 @@ def h_in_IC(changepoints, T, h='1'):
 
 
 def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun='no_scale', Kl_fun='Nlog(NT)/T', h='1', C_K = 0):
+=======
+def IC(loss, changepoints, g_index, N, T, K, C=1, loss_fun='no_scale', Kl_fun="sqrtN", h='1', C_K = 0):
+>>>>>>> Stashed changes
     '''
     Parameters
     ----------
-    Kl_fun : Penalty on K. The default is 'NlogNT/T'. In older version of IC, this is 'logN'
+    Kl_fun : Penalty on K. The default is 'sqrtN' if IC is calculated at the end of the algorithm.
+        If tuning K at each iteration, Kl_fun should be 'Nlog(NT)/T'.
     h : TYPE, optional
         DESCRIPTION. The default is '1'.
     C_K: The coefficient in h function. Since we no long have the h term in the IC, the default is 0.
     C : The coefficient in the penalty function Kl_fun. The default is 2. Note that I'm not sure how to set the default value.
           In theory, this value should be of order O(log(NT)). I've tried on my side C_K=2 works well in an example where the penalty function with C_K=2 happends to equal to that in the BIC.
           If C=2 doesn't work for you, you may consider change it to something else like O(log(NT)), O(sqrt(log(NT))), O(NT).
+<<<<<<< Updated upstream
+=======
+          
+>>>>>>> Stashed changes
     '''
     # K = len(set(g_index))
     print("Kl_fun = ", Kl_fun)
@@ -77,7 +86,13 @@ def IC(loss, changepoints, g_index, N, T, K, C=0, loss_fun='no_scale', Kl_fun='N
     elif Kl_fun == 'logN':
         Kl = K * np.log(N)
     elif Kl_fun == 'Nlog(NT)/T':
+<<<<<<< Updated upstream
         Kl = C * K * N * np.log(N*T)/T
+=======
+        Kl = C* K* N * np.log(N*T)/T
+    elif Kl_fun =="sqrtN":
+        Kl = C* K* np.sqrt(N)
+>>>>>>> Stashed changes
     # print("kl", Kl)
     _, indicesList, occurCount = np.unique(g_index, return_index=True, return_counts=True)
     # print('c',occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * np.log(np.sum(T-1 -changepoints)))
