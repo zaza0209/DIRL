@@ -5,7 +5,7 @@ library(dplyr)
 library(ggpubr)
 library(ggbreak)
 library("ggsci")
-if(Sys.info()["nodename"] %in% c("PC-20181212HEBU")){
+if(Sys.info()["nodename"] %in% c("LAPTOP-6IRDE44K")){
   curr_dir <- "D:/OneDrive/PhD/DIRL/IHS/simu/simu_anonymous/tuneK_iterations/value"
   setwd(curr_dir)
 } else{ # greatlakes
