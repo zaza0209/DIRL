@@ -1,4 +1,11 @@
 results/
+output/
+ic/
+*.dat 
+*.pkl 
+*.py 
+*.html 
+simulations/
 .pyproject
 __pycache__
 .ipynb_checkpoints
@@ -7,7 +14,7 @@ __pycache__
 *.Rhistory
 tuneK_iterations/
 simulation_real/
-simulation_real_20240723
+simulation_real_20240723/
 realdata/
 realdata_2020/*.pkl 
 realdata_2020/*.dat 
@@ -21,10 +28,3 @@ semisyn_2020/online/threshold/
 semisyn_2020/online_value/*.png 
 semisyn_2020/online_value/*.pkl 
 semisyn_2020/online_value/*.dat
-output/
-ic/
-*.dat 
-*.pkl 
-*.py 
-*.html 
-simulations/
