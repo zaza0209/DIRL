@@ -16,9 +16,10 @@ if(Sys.info()["nodename"] %in% c("LAPTOP-6IRDE44K")){
 N <- 50
 set.seed(20)
 dat <- fread("vall_2022-11-05N50_diffsign.csv")
-dat2 <- fread("vall_2024-03-18N50_1d.csv")
+dat2 <- fread("vall_2024-07-18N50_1d.csv")
 dat[dat$init == 'proposed', ] = dat2[dat2$init == 'proposed',]
 dat[dat$init == 'only_clusters', ] = dat2[dat2$init == 'only_clusters',]
+dat[dat$init == 'only_cp', ] = dat2[dat2$init == 'only_cp',]
 dat$Setting <- factor(dat$Setting, 
                       levels = c('pwconst2', 'smooth'),
                       labels = c('Piecewise Constant', 'Smooth'))

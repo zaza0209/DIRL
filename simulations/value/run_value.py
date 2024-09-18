@@ -7,17 +7,24 @@ estimate the optimal reward after identifying change point
 import platform, sys, os, re, pickle
 from copy import deepcopy
 from copy import copy
-plat = platform.platform()
-print(plat)
-if plat == 'Windows-10-10.0.14393-SP0': ##local
-    os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/value")
-    sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
-elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
-    os.chdir("/home/xx/heterRL/tuneK_iterations/value")
-    sys.path.append("/home/xx/heterRL")
-else:
-    os.chdir("/home/xx/heterRL/tuneK_iterations/value")
-    sys.path.append("/home/xx/heterRL")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Navigate up two levels to reach the "ClusterRL" directory
+cluster_rl_dir = os.path.abspath(os.path.join(script_dir, '..', '..'))
+
+# Append the ClusterRL directory to sys.path
+sys.path.append(cluster_rl_dir)
+# plat = platform.platform()
+# print(plat)
+# if plat == 'Windows-10-10.0.14393-SP0': ##local
+#     os.chdir("C:/Users/test/Dropbox/tml/IHS/simu/simu/tuneK_iterations/value")
+#     sys.path.append("C:/Users/test/Dropbox/tml/IHS/simu") 
+# elif plat == 'Linux-5.10.0-18-cloud-amd64-x86_64-with-glibc2.31':  # biostat cluster
+#     os.chdir("/home/huly/heterRL/tuneK_iterations/value")
+#     sys.path.append("/home/huly/heterRL")
+# else:
+#     os.chdir("/home/huly0209_gmail_com/heterRL/tuneK_iterations/value")
+#     sys.path.append("/home/huly0209_gmail_com/heterRL")
 
 from sklearn import tree
 import numpy as np
@@ -43,6 +50,7 @@ cov = float(sys.argv[7])
 cp_detect_interval = int(sys.argv[8])
 is_tune_parallel = int(sys.argv[9])
 is_cp_parallel= int(sys.argv[10])
+max_iter=int(sys.argv[11])
 effect_size = "strong"
 print('type_est', type_est)
 print('trans_setting', trans_setting)
@@ -53,12 +61,13 @@ reward_setting = 'homo'
 gamma = 0.9
 # type_est = "proposed"
 
-
+Kl_fun='Nlog(NT)/T' #"sqrtN"
 startTime = datetime.now()
 
 np.random.seed(seed)
 plot_value = seed < 5
-
+threshold_type = "maxcusum"
+early_stopping=0
 # %% simulate data
 # N = 200
 # terminal timestamp
@@ -69,7 +78,6 @@ T_initial = 50 #100
 p = 1
 K=2
 
-max_iter = 10
 K_list = list(range(1,5))
 # mean vector of X0
 mean0 = 0
@@ -79,8 +87,7 @@ cov0 = 0.5
 # mean vector of random errors zt
 mean = 0
 # diagonal covariance of random errors zt
-
-
+C =1 #1 # if tune K in iteration: np.log(N*cp_detect_interval)
 #%% environment for saving online values
 # method = ''.join([i for i in type_est if not i.isdigit()])
 # append_name =  "Tnew"+str(T_new)+ "_cov"+str(cov)
@@ -88,17 +95,29 @@ if not os.path.exists('results'):
     print('not results')
     os.makedirs('results', exist_ok=True)
 print(os.getcwd())
-# data_path = 'results/' + 'trans' + trans_setting +'_gamma' + \
-#             re.sub("\\.", "", str(gamma)) +'/N' + str(N) +'/'+ type_est + append_name+\
-#                 '/seed_'+str(seed)
+
+if type_est in ["proposed", "only_clusters"]:
+    if Kl_fun=='Nlog(NT)/T':
+        Kl_fun_name = "Nlog(NT)_T"
+    else:
+        Kl_fun_name = Kl_fun
+    method_name = type_est + str(K_list)+'/Kl_fun'+Kl_fun_name+'_C'+str(C)
+    if type_est == "proposed":
+        method_name += "earlystop"+str(early_stopping)+'/max_iter'+str(max_iter)
+else:
+    method_name  = type_est
+    
 data_path = 'results/trans' + trans_setting +'/N' + str(N) +'/Tnew_' +\
-            str(T_new)+'_type_'+type_est+'_cpitv'+ str(cp_detect_interval)+'/cov'+str(cov) + '/seed'+str(seed) 
+            str(T_new)+'_type_'+method_name+'_cpitv'+ str(cp_detect_interval)+\
+            '/cov'+str(cov) + '/seed'+str(seed) 
 if not os.path.exists(data_path):
     print('data_path', os.path.exists(data_path))
     os.makedirs(data_path, exist_ok=True)
 
-print(data_path)
+
 os.chdir(data_path)
+print(os.getcwd())
+sys.stdout.flush()
 file_name = 'seed_'+str(seed)+'.dat'
 if os.path.exists(file_name):
     exit()
@@ -112,7 +131,6 @@ sys.stdout.flush()
 qmodel = 'polynomial'
 degree = 1
 
-num_threads = 1
 #%% generate data for estimating the optimal policy
 if effect_size == "strong":
     effect_size_factor = 1.0
@@ -267,9 +285,7 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                 cp_current = changepoints_true# np.minimum(changepoints_true, np.repeat(T_current, N))
                 g_index = g_index_true
             else:
-                # if batch_index == 1:
-                #     cp_current = np.maximum(cp_current, changepoints_true)
-                # else:
+
                 for g in range(2):
                     if change_or_not[g] != 0:
                         cp_current[g_index_true == g] = np.repeat(change_points_subsequent[cp_index], int(N/2))
@@ -277,13 +293,6 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                     g_index = np.repeat(0, N)
                 else:
                     g_index = g_index_true
-            # if batch_index == 0:
-            #     g_index = g_index_true
-            # else:
-            #     if system_indicator[0] == system_indicator[1]:
-            #         g_index = np.repeat(0, N)
-            #     else:
-            #         g_index = g_index_true
         if method == "only_clusters":
             # if T_current > 200 and T_current % 100 == 0:
             #     cp_current = np.repeat(max(0, T_current - 200), N)
@@ -293,12 +302,20 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             States_s = copy(States_updated[:, int(cp_current[0]):, :])
             for i in range(p):
                 States_s[:, :, i] = transform(States_s[:, :, i])
+            # tune K separately
             # out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:,  int(cp_current[0]):],
-            #                      seed = seed+batch_index, init = "changepoints", nthread=nthread,changepoints_init =cp_current, 
-            #                      max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel, C=0)
+            #                       seed = seed+batch_index, init = "changepoints", nthread=nthread,changepoints_init =cp_current, 
+            #                       max_iter=1,is_only_cluster=1, is_tune_parallel=is_tune_parallel, C=C,
+            #                       Kl_fun=Kl_fun)
+            # g_index = out[2].g_index
+            
+            # tun K in iterations
             out = mean_detect.fit(States_s, Actions_updated[:,  int(cp_current[0]):],
-                                    seed = seed+batch_index, init = "changepoints", nthread=nthread, changepoints_init =cp_current,
-                                    max_iter=1,is_only_cluster=1, C=0, K=K_list)
+                                    seed = seed+batch_index, 
+                                    init = "changepoints", nthread=nthread, 
+                                    changepoints_init =cp_current,
+                                    Kl_fun=Kl_fun,
+                                    max_iter=1,is_only_cluster=1, C=C, K=K_list)
             g_index = out[1]
 
         if method == "only_cp":
@@ -318,11 +335,11 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             out = mean_detect.fit_tuneK([1], States_s, Actions_updated[:, int(np.max(cp_current)):],
                                  seed = seed+batch_index, init = "clustering", epsilon=epsilon, nthread=nthread,
                                  kappa_min = kappa_min, kappa_max = kappa_max, max_iter=1, 
-                                 g_index_init_list=[g_index], C=0,
+                                 g_index_init_list=[g_index], C=0, is_only_cp=1,
+                                 threshold_type=threshold_type,
                                  is_tune_parallel=0, is_cp_parallel = is_cp_parallel)
             cp_current += out.best_model[2]
         if method == "proposed":
-            print('1')
             if batch_index == 0:
                 cp_current = np.repeat(0,N)
                 kappa_min = 10 
@@ -333,23 +350,27 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                 kappa_max = min(T_length - 10, 40)
             print('T_length', T_length, ', cp_current, ',cp_current)
             States_s = copy(States_updated[:, int(np.max(cp_current)):, :])
-            for i in range(1):
+            for i in range(p):
                 States_s[:, :, i] = transform(States_s[:, :, i])
             epsilon = 1/T_length
             print('States_s.shape', States_s.shape)
             try:
                 # out = mean_detect.fit_tuneK(K_list, States_s, Actions_updated[:, int(np.max(cp_current)):],
-                #                      seed = seed, init = "clustering", epsilon=epsilon, nthread=nthread,
-                #                      kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
-                #                      init_cluster_range = T_length-1-kappa_min, 
-                #                      is_cp_parallel=is_cp_parallel, C=0,
-                #                      is_tune_parallel=is_tune_parallel)
+                #                       seed = seed, init = "clustering", epsilon=epsilon, nthread=nthread,
+                #                       kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
+                #                       init_cluster_range = T_length-1-kappa_min, 
+                #                       is_cp_parallel=is_cp_parallel, C=C, Kl_fun=Kl_fun,
+                #                       is_tune_parallel=is_tune_parallel)
+                # out = out[2]
                 out = mean_detect.fit(States_s, Actions_updated[:, int(np.max(cp_current)):],
                                     seed = seed, init = "clustering", epsilon=epsilon,  nthread=nthread,
                                     kappa_min = kappa_min, kappa_max = kappa_max, max_iter=max_iter, 
                                     K=K_list, init_cluster_range = T_length-1-kappa_min,
-                                    is_cp_parallel=is_cp_parallel, C=2)
-                # print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
+                                    threshold_type=threshold_type,
+                                    Kl_fun=Kl_fun,  
+                                    is_cp_parallel=is_cp_parallel, C=C, 
+                                    early_stopping=early_stopping)
+                print('is_cp_parallel', is_tune_parallel, ', is_cp_parallel', is_cp_parallel, ', finish time: ',datetime.now()-startTime)
                 # changepoints = best_out[2]
                 cp_current = np.repeat(int(np.max(cp_current)), N)+ out.changepoints #change_point_detected['integral_emp']
                 g_index = out.g_index
@@ -365,8 +386,8 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
       
         print('Finished. Time: ', datetime.now() - cpTime)
         #%% estimate the optimal policy
-        q_all_group = [None]*len(g_index)
-        q_all_fit = [None]*len(g_index)
+        q_all_group = [None]*len(np.unique(g_index))
+        q_all_fit = [None]*len(np.unique(g_index))
         print('States_updated.shape', States_updated.shape)
         policyTime = datetime.now()
         for g in np.unique(g_index):
@@ -375,7 +396,8 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
             print('States_updated[g_index == ',g,', ', cp_current[np.where(g_index==g)[0][0]], ':, :]',States_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:, :].shape)
             try:
                 out = select_model_cv(States_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:, :].reshape((np.sum(g_index == g), -1, p)), 
-                                      Rewards_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:].reshape((np.sum(g_index == g), -1)), Actions_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:].reshape((np.sum(g_index == g), -1)), param_grid, bandwidth=rbf_bw,
+                                      Rewards_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:].reshape((np.sum(g_index == g), -1)), Actions_updated[g_index == g, cp_current[np.where(g_index==g)[0][0]]:].reshape((np.sum(g_index == g), -1)),
+                                      param_grid, bandwidth=rbf_bw,
                                       qmodel='polynomial', gamma=gamma, model=basemodel, max_iter=200, tol=1e-4,
                                       nfold = 5, num_threads = nthread, metric = metric)
                 model = out['best_model']
@@ -407,7 +429,6 @@ def estimate_value(States, Rewards, Actions, type_est, param_grid, basemodel):
                     system_indicator[g] = np.abs(system_indicator[g]-1)                    
             print("change print encountered", change_or_not)
             cp_index += 1
-        # print(system_settings_batch['changepoints'])
 
         # simulate new data following the estimated policy
         seed_new = int(np.sqrt(np.random.randint(1e6) + seed_new*np.random.randint(10)))

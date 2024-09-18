@@ -19,7 +19,7 @@ elif plat == 'Linux-4.18.0-305.65.1.el8_4.x86_64-x86_64-with-glibc2.28':  # grea
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-import simu.simu_mean_detect as mean_detect
+import simu.simu_mean_detect_sparse as mean_detect
 from sklearn.metrics.cluster import adjusted_rand_score
 import simulation_real.simulate_data_real as sim
 import copy
@@ -143,6 +143,7 @@ system_settings_list_initial = [
 K_true = len(system_settings_list_initial)
 
 # simulate the first offline batch
+sim_dat = sim.simulate_data(T, [system_settings_list_initial[0]])
 States, Rewards, Actions = sim.simulate(system_settings=system_settings_list_initial[0], seed=seed)
 for k in range(1, K_true):
     States_k, Rewards_k, Actions_k = sim.simulate(system_settings = system_settings_list_initial[k], seed = seed)

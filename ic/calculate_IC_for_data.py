@@ -14,8 +14,6 @@ def IC(loss_by_K, changepoints, g_index, N, T, K, dfs, q = 1.96, C=0, Kl_fun='lo
     if Kl_fun == 'log(NT)/T':
         Kl = C * K * np.log(N*T)/T
     elif Kl_fun == 'chi2':
-        # dat_out = pd.DataFrame({'cluster': g_index, 'changepoint': changepoints})
-        # print('g_index =', g_index)
         cluster_cp = pd.crosstab(g_index, changepoints)
         cols = cluster_cp.columns
         bt = cluster_cp.apply(lambda x: x > 0)

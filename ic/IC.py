@@ -121,10 +121,13 @@ for K in Ks:
 cluster_ns
 
 # %%
-loss_n - range(K)*np.sqrt(N)
+loss_n = np.array([-910.2592503162963, -839.1226686380818,-804.6847070892476,
+          -781.6860318450282, -757.0795084643895, -743.7454747676743, 
+          -726.8653177935311])
+loss_n - np.array(range(1, 8))*N*np.sqrt(np.log(N*T)/T)*0.1
 
 ## ?
-loss_n + range(1, K+1)*np.sqrt(N)
+# loss_n - np.array(range(1, K+1))*np.sqrt(np.log(N*T)*N)
 # %%
 clusters
 
