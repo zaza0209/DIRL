@@ -28,3 +28,4 @@ semisyn_2020/online/threshold/
 semisyn_2020/online_value/*.png 
 semisyn_2020/online_value/*.pkl 
 semisyn_2020/online_value/*.dat
+functions/test*
