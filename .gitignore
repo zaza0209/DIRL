@@ -5,8 +5,8 @@ __pycache__
 .spyproject
 .gitattributes
 *.Rhistory
-tuneK_iterations
-simulation_real
+tuneK_iterations/
+simulation_real/
 simulation_real_20240723
 realdata/
 realdata_2020/*.pkl 
@@ -22,7 +22,7 @@ semisyn_2020/online_value/*.png
 semisyn_2020/online_value/*.pkl 
 semisyn_2020/online_value/*.dat
 output/
-ic
+ic/
 *.dat 
 *.pkl 
 *.py 
