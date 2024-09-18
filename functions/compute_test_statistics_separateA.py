@@ -13,8 +13,12 @@ import scipy.sparse as sp
 from scipy.stats import multivariate_normal
 from copy import copy
 from sklearn.kernel_approximation import RBFSampler
+from sklearn.utils.validation import check_is_fitted
 # from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import pdist
+import pickle
+from sklearn.tree import DecisionTreeRegressor, export_text
+from sklearn.exceptions import NotFittedError
 from joblib import Parallel, delayed
 from bisect import bisect_right
 import csv
@@ -125,7 +129,8 @@ class q_learning():
             self.States1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=0)
         else:
             self.States1 = self.create_design_matrix(States_next, Actions, type='next', pseudo_actions=0)
-
+        
+        # print(self.States1[0][0,:5])
         # print(len(self.States1), ', ',   self.n_actions)
         # self.States1_action1 = self.create_design_matrix(States, Actions, type='next', pseudo_actions=1)
 
@@ -152,27 +157,6 @@ class q_learning():
         else: # do nothing
             pass
 
-    # def create_sp_design_matrix(self, features, Actions):
-    #     """
-    #     Create a sparse design matrix phi for functional approximation.
-    #     For each action a in the action space, the features phi(States, a) is a Nxp matrix.
-    #     phi is composed of combining the columns of phi(States, a), depending on the action taken
-    #     :return: an np.array of size N x (p*a)
-    #     """
-    #     p = features.shape[1]
-    #     ## create column indices for the sparse matrix
-    #     idx_add = p * np.arange(self.n_actions)
-    #     col = np.array([xi + np.arange(p) for xi in idx_add])
-    #     col_idx = col[Actions]
-    #     col_idx = np.concatenate(col_idx)
-    #
-    #     ## create row indices for the sparse matrix
-    #     row_idx = np.repeat(np.arange(features.shape[0]), p)
-    #
-    #     # creating sparse matrix
-    #     sparseMatrix = sp.csr_matrix((np.concatenate(features), (row_idx, col_idx)),
-    #                                  shape=(features.shape[0], p * self.n_actions))
-    #     return sparseMatrix
 
 
     def create_design_matrix(self, States, Actions, type='current', pseudo_actions=None):
@@ -231,7 +215,7 @@ class q_learning():
 
 
 
-    def fit(self, model=None, max_iter=200, tol=1e-6):
+    def fit(self, model=None, max_iter=200, tol=1e-6, early_stopping=0, verbose=1):
         # initialize error and number of iterations
         err = 1.0
         num_iter = 0
@@ -259,29 +243,33 @@ class q_learning():
 
             # is the model initialized?
             try:
-                self.model.coef_
-            except: # if not initialized
-                # self.model.fit(self.States0, self.Rewards_vec)
+                check_is_fitted(model)
+                # _ = print(export_text(self.model))
+                # self.model.coef_
+            except NotFittedError: # if not initialized
                 for a in np.unique(self.Actions):
-                    # if self.States0[a] is not None:
                     a = int(a)
                     self.q_function_list[a].fit(self.States0[a], self.Rewards_vec[self.action_indices[a]])
-
+        
+        
         ## FQI
         convergence = True
         errors = []
         # loss = []
         predicted_old = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
         predicted = [np.zeros(len(self.action_indices[a])) for a in range(self.n_actions)]
+        # print(self.Rewards_vec[:5])
+        min_err = np.inf
         while err > tol and num_iter <= max_iter:
 
             Q_max = np.ones(shape = self.Rewards_vec.shape) * (-999)
             for a in np.unique(self.Actions):
                 a = int(a)
+                # print(export_text(self.q_function_list[a]))
                 # if self.States0[a] is not None:
                 # predict the Q value for the next time and find out the maximum Q values for each episode
                 Q_max = np.maximum(self.q_function_list[a].predict(self.States1[0]), Q_max)
-
+            
             # compute TD target
             td_target = self.Rewards_vec + self.gamma * Q_max
             # update parameter fit
@@ -292,12 +280,22 @@ class q_learning():
                 self.q_function_list[a].fit(self.States0[a], td_target[self.action_indices[a]])
                 predicted[a] = self.q_function_list[a].predict(self.States0[a])
                 err += sum((predicted[a] - predicted_old[a])**2)
-            err = np.sqrt(err)
+            err = np.sqrt(err)/(np.linalg.norm(np.concatenate(predicted_old), ord=2)+1e-6)
+            
+            
+            
             errors.append(err)
             predicted_old = copy(predicted)
             num_iter += 1
-            # print("err=",err)
-
+            if verbose:
+                print("num_iter", num_iter, "err=",err, err*np.linalg.norm(np.concatenate(predicted_old), ord=2), 'min_err', min_err)
+            if np.abs(err-min_err)<1e-5 and early_stopping:
+                if verbose:
+                    print('early stop')
+                break
+            elif err < min_err:
+                min_err = err 
+                
             # break if exceeds the max number of iterations allowed
             if num_iter > max_iter:
                 convergence = False
@@ -325,18 +323,6 @@ class q_learning():
 
         td_error = self.Rewards_vec + self.gamma * Q_max - predicted
 
-        ## calculate W matrix
-        # create design matrix for the states under the optimal actions
-
-        # optimal_design_matrix_list = self.create_design_matrix(self.States, opt_action, 'next')
-        # optimal_design_matrix = np.zeros(shape = self.States1[0].shape)
-        # for a in range(self.n_actions):
-        #     optimal_design_matrix[self.action_indices[a],:] = optimal_design_matrix_list[a]
-
-        # W_mat = 0.0
-        # for a in range(self.n_actions):
-        #     W_mat += self.States0[a].T.dot(self.States0[a] - self.gamma * optimal_design_matrix_list[a]) / self.T
-        # W_mat = self.States0.T.dot(self.States0 - self.gamma * optimal_design_matrix) / self.T
 
         FQI_result = namedtuple("beta", ["q_function_list", "design_matrix", 'Qmodel'])
         return FQI_result(self.q_function_list, self.States0,
@@ -411,7 +397,7 @@ class q_learning():
         # print(design_matrix0[0,:].toarray())
 
         if not majority_vote:
-            opt_reward = np.ones(shape=(N * T,)) * (-999)
+            opt_reward = np.ones(shape=(N * T,)) * (-1*np.inf)
             opt_action = np.zeros(shape=(N * T,), dtype='int32')
             for a in np.unique(self.Actions):
                 a = int(a)
@@ -426,7 +412,7 @@ class q_learning():
 
         else:
             n_models = len(model_list_to_vote)
-            opt_reward_alliter = np.ones(shape=(N * T, n_models)) * (-999)
+            opt_reward_alliter = np.ones(shape=(N * T, n_models)) * (-1*np.inf)
             opt_action_alliter = np.zeros(shape=(N * T, n_models), dtype='int32')
             for n_model, m in enumerate(model_list_to_vote):
                 # print(n_model, m)

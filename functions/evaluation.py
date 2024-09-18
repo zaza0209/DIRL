@@ -12,6 +12,7 @@ import functions.compute_test_statistics_separateA as stat
 from itertools import product
 from copy import copy
 from random import sample
+from math import ceil
 from scipy.spatial.distance import pdist
 
 # importlib.reload(stat)
@@ -44,7 +45,8 @@ def gaussian_rbf_distance(x1, x2, bandwidth = 1.0):
 
 
 def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis = 0, bandwidth = 1.0,
-          qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4, metric = 'ls'):
+          qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4,
+          metric = 'ls', early_stopping=1, verbose=0):
 
     # n_actions = len(np.unique(Actions_input))
     #%% training
@@ -53,7 +55,6 @@ def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis
     # print('test_index, ',test_index)
     # print('States_input[0].shape[1], ',States_input[0].shape[1])
     if type(States_input) is not list:
-    # if States.shape[0] >4:
         States_train = np.delete(States_input, (test_index), axis=0)
         Rewards_train = np.delete(Rewards_input, (test_index), axis=0)
         Actions_train = np.delete(Actions_input, (test_index), axis=0)
@@ -86,11 +87,10 @@ def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis
         q = stat.q_learning(States_train_current, Rewards_train, Actions_train, qmodel, num_basis, gamma, num_basis, bandwidth, States_next=States_train_next)
         del States_train_current, States_train_next, Rewards_train, Actions_train
 
-    q_function_list = q.fit(model, max_iter, tol).q_function_list
+    q_function_list = q.fit(model, max_iter, tol, early_stopping, verbose=verbose).q_function_list
 
     # %% testing
     if type(States_input) is not list:
-    # if States.shape[0] >1:
         States_test = States_input[test_index, :, :]
         Rewards_test = Rewards_input[test_index, :]
         Actions_test = Actions_input[test_index, :]
@@ -125,17 +125,7 @@ def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis
     # temporal difference error
     # n_actions = len(np.unique(q1.Actions))
     predicted_q_current = np.zeros(shape=q1.Rewards_vec.shape)
-    # print('q1.action_indices',q1.action_indices)
-    # print('q1.States0',q1.States0)
-    # print(n_actions)
     for a in np.unique(q1.Actions):
-        # print("q1.action_indices[",a,"] =",q1.action_indices[a])
-        # print("q_function_list[",a,"] =",q_function_list[a])
-        # print("q1.States0[",a,"] =",q1.States0[a])
-        # a_q1=np.where(np.unique(q1.Actions) == a)[0].item()
-        # print('q1.States0[int(',a,')]',q1.States0[int(a)].shape, 'q1.States0[int(a)]',q1.States0[int(a)].shape)
-        # print('q_function_list[int(a)]', q_function_list[int(a)])
-        # if len(q1.States0[int(a)] )>0:
         if a in a_unique:
             predicted_q_current[q1.action_indices[int(a)]] = q_function_list[int(a)].predict(q1.States0[int(a)])
     tde = Rewards_test.flatten() + gamma * Q_max - predicted_q_current
@@ -151,9 +141,9 @@ def train_test(States_input, Rewards_input, Actions_input, test_index, num_basis
             States_stack = States_input[test_index, :-1, :].transpose(2, 0, 1).reshape(States_input.shape[2], -1).T
         # else:
         elif States_input[0].shape[1] > 1:
-            States_stack = States_input[0][:,test_index, :].reshape((-1,1))#.transpose(2, 0, 1).reshape(States.shape[2], -1).T
+            States_stack = States_input[0][:,test_index, :].reshape((-1,States_input[0].shape[2]))#.transpose(2, 0, 1).reshape(States.shape[2], -1).T
         else:
-            States_stack = States_input[0][test_index,:, :].reshape((-1,1))
+            States_stack = States_input[0][test_index,:, :].reshape((-1,States_input[0].shape[2]))
         # print('Actions.shape', Actions.shape)
         # Actions_vec = Actions[test_index, :].flatten()
         Actions_vec = Actions_test.flatten()
@@ -241,58 +231,8 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
                     qmodel='polynomial', gamma=0.95, model=None, max_iter=300, tol=1e-4,
                     nfold = 2, num_threads = 3,
                     metric = 'ls', num_basis = 1, verbose=False,
-                    kernel_regression=False, sampled_time_points=None):
-    if len(States.shape) == 2:
-        States = States.reshape((1, States.shape[0], -1))
-    # print('Actions.shape', Actions.shape)
-    # if  Actions.shape[1]  == 1:
-    #     Actions = Actions.reshape((1,-1))
-    #     # print('Actions.shape', Actions.shape)
-    # if Rewards.shape[1] == 1:
-    #     Rewards = Rewards.reshape((1,-1))
-    if States.shape[0] > 4: # split on N
-        N = States.shape[0]
-        test_indices = list(split_train_test(N, nfold))
-        States_input=States
-        Actions_input =Actions
-        Rewards_input = Rewards
-    elif Rewards.shape[1] > nfold * 2: # split on T
-        print('cv 2')
-        T = Rewards.shape[1]
-        test_indices = list(split_train_test(T, nfold))
-        States_current = States[:,:-1,:].copy()
-        States_next = States[:,1:,:].copy()
-        States_input=[States_current, States_next]
-        Actions_input =Actions
-        Rewards_input = Rewards
-    else: # split on NT
-        print('cv 3')
-        States_current_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, 1))
-        States_next_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, 1))
-        Actions_stack = (Actions.flatten()).reshape([-1, 1])
-        Rewards_stack = (Rewards.flatten()).reshape([-1, 1])
-        NT = Actions_stack.shape[0]
-        if NT > nfold*2:
-            test_indices = list(split_train_test(NT, nfold))
-            States_input=[States_current_stack, States_next_stack]
-            Actions_input = Actions_stack
-            Rewards_input = Rewards_stack
-        else:
-            nfold = int(NT/2)
-            test_indices = list(split_train_test(NT, nfold))
-            States_input=[States_current_stack, States_next_stack]
-            print('States_current_stack.shape',States_current_stack.shape)
-            Actions_input = Actions_stack
-            Rewards_input = Rewards_stack
-    # print('Actions.shape', Actions.shape)
-        # test_index=test_indices[fold]
-    # if N > 50:
-    #     num_threads = 1
-    # # else:
-    # #     num_threads = 5
-    # print('test_index =', test_indices[0])
-
-    # expand parameter grid to a list of dictionaries
+                    kernel_regression=False, sampled_time_points=None, early_stopping=1,
+                    ):
     def iter_param(param_grid):
         # Always sort the keys of a dictionary, for reproducibility
         items = sorted(param_grid.items())
@@ -306,6 +246,63 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
 
     fit_param_list = list(iter_param(param_grid))
     basemodel = copy(model)
+    
+    if len(States.shape) == 2:
+        States = States.reshape((1, States.shape[0], -1))
+    if States.shape[0] > 4: # split on N
+        N = States.shape[0]
+        test_indices = list(split_train_test(N, nfold))
+        States_input=States
+        Actions_input =Actions
+        Rewards_input = Rewards
+    elif Rewards.shape[1] >= nfold * 2: # split on T
+        if verbose: print('cv 2')
+        T = Rewards.shape[1]
+        test_indices = list(split_train_test(T, nfold))
+        States_current = States[:,:-1,:].copy()
+        States_next = States[:,1:,:].copy()
+        States_input=[States_current, States_next]
+        Actions_input =Actions
+        Rewards_input = Rewards
+    else: # split on NT
+        if verbose: print('cv 3')
+        p = States.shape[-1]
+        States_current_stack = States[:, :-1 or None, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, p))
+        States_next_stack = States[:, 1:, :].transpose(2, 0, 1).reshape(States.shape[2], -1).T.reshape((-1, 1, p))
+        Actions_stack = (Actions.flatten()).reshape([-1, 1])
+        Rewards_stack = (Rewards.flatten()).reshape([-1, 1])
+        NT = Actions_stack.shape[0]
+        if NT >= nfold*2:
+            test_indices = list(split_train_test(NT, nfold))
+            States_input=[States_current_stack, States_next_stack]
+            Actions_input = Actions_stack
+            Rewards_input = Rewards_stack
+        else:
+            nfold = ceil(NT/2)
+            if nfold >2:
+                test_indices = list(split_train_test(NT, nfold))
+                States_input=[States_current_stack, States_next_stack]
+                if verbose: print('States_current_stack.shape',States_current_stack.shape)
+                Actions_input = Actions_stack
+                Rewards_input = Rewards_stack
+            else:
+                model = copy(basemodel.set_params(**fit_param_list[0]))
+                out = {'fit_param_list': None,
+                       'test_error_list': None,
+                       'best_model': model,
+                       'best_param': fit_param_list[0]}
+                return out
+            
+    # print('Actions.shape', Actions.shape)
+        # test_index=test_indices[fold]
+    # if N > 50:
+    #     num_threads = 1
+    # # else:
+    # #     num_threads = 5
+    # print('test_index =', test_indices[0])
+
+    # expand parameter grid to a list of dictionaries
+    
     test_error_list = []
     min_test_error = 1e10
     selected_model = copy(model)
@@ -329,15 +326,12 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
     for fit_param in fit_param_list:
         model = copy(basemodel.set_params(**fit_param))
 
-        # def run_one(fold):
-        #     return train_test(States, Rewards, Actions, test_index=test_indices[fold], num_basis=num_basis, bandwidth=bandwidth,
-        #                       qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
-
         if not kernel_regression: # regular FQI
             # print("regular")
             def run_one(fold):
                 return train_test(States_input, Rewards_input, Actions_input, test_index=test_indices[fold], num_basis=num_basis, bandwidth=1,
-                           qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric)
+                           qmodel=qmodel, gamma=gamma, model=model, max_iter=max_iter, tol=tol, metric=metric,early_stopping=early_stopping,
+                           verbose=verbose)
         else:
             # print("kernel")
             def run_one(fold):

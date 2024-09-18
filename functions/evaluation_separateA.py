@@ -154,10 +154,7 @@ def train_test_kernel(States, Rewards, Actions, test_index, sampled_time_points,
 
     return K_total
 
-    # # compute TD target
-    # loss = np.mean((Rewards_test[:, sampled_time_points[:-1]].flatten() + gamma * Q_max - model.predict(q1.States0)) ** 2)
-    #
-    # return loss
+
 
 
 
@@ -251,62 +248,87 @@ def select_model_cv(States, Rewards, Actions, param_grid, bandwidth = None,
     return out
 
 
-def fitted_Q_evaluation(qlearn_env, Q0=None, max_iter = 200, random_policy=False, agnostic_policy=None):
-    Rewards_vec = qlearn_env.Rewards_vec
-
-    if random_policy:
-        opt_action = np.random.binomial(1, 0.25, qlearn_env.N*qlearn_env.T).reshape(qlearn_env.N, qlearn_env.T)
-        opt_action = opt_action.astype(int)
-    else:
-        if agnostic_policy is None:
-            # opt_action = qlearn_env.optimal().opt_action.reshape(qlearn_env.N, qlearn_env.T)
-            next_States = np.zeros(shape = qlearn_env.States.shape)
-            next_States[:,:-1,:] = qlearn_env.States[:,1:,:]
-            opt_action = qlearn_env.predict(next_States).opt_action.reshape(qlearn_env.N, qlearn_env.T)
+def fitted_Q_evaluation(qlearn_env, Q0=None, max_iter = 200, random_policy=False, 
+                        agnostic_policy=None, early_stopping=0):
+    if max_iter >0:
+        Rewards_vec = qlearn_env.Rewards_vec
+    
+        if random_policy:
+            opt_action = np.random.binomial(1, 0.25, qlearn_env.N*qlearn_env.T).reshape(qlearn_env.N, qlearn_env.T)
+            opt_action = opt_action.astype(int)
         else:
-            opt_action = np.repeat(agnostic_policy, qlearn_env.N*qlearn_env.T).reshape(qlearn_env.N, qlearn_env.T)
-    # print(opt_action[0:5])
-    test_design_matrix_next = qlearn_env.create_design_matrix(qlearn_env.States, opt_action, type='next',
-                                                              pseudo_actions=None)
-    actions = np.unique(opt_action).tolist()
-
-    # create a list of indices to indicate which action is taken
-    action_indices = [None for a in range(qlearn_env.n_actions)]
-    for a in actions:
-        action_indices[a] = np.where(opt_action.flatten() == a)[0]
-    # action_indices = [np.where(opt_action.flatten() == a)[0] for a in actions]
-    del opt_action
-    # randomly initialize Q for FQE
-    if Q0 is None:
-        Q = copy(qlearn_env.q_function_list)
-        # for a in actions:
-        #     Q[a].fit(qlearn_env.States0[a], np.zeros(shape=(len(qlearn_env.action_indices[a],))))
-    else:
-        Q = Q0
-        # initialize
-        Q.fit(qlearn_env.States0, np.zeros(Rewards_vec.shape))
-
-    Q_old = np.ones(shape=Rewards_vec.shape) * (-999)
-    for a in actions:
-        Q_old[action_indices[a]] = Q[a].predict(test_design_matrix_next[a])
-    # Q_old = Q.predict(test_design_matrix[0])
-    Q_new = copy(Q_old)
-    for m in range(max_iter):
-        Z = Rewards_vec + qlearn_env.gamma * Q_old
+            if agnostic_policy is None:
+                # opt_action = qlearn_env.optimal().opt_action.reshape(qlearn_env.N, qlearn_env.T)
+                next_States = np.zeros(shape = qlearn_env.States.shape)
+                next_States[:,:-1,:] = qlearn_env.States[:,1:,:]
+                opt_action = qlearn_env.predict(next_States).opt_action.reshape(qlearn_env.N, qlearn_env.T)
+            else:
+                raise NotImplementedError()
+                opt_action = np.repeat(agnostic_policy, qlearn_env.N*qlearn_env.T).reshape(qlearn_env.N, qlearn_env.T)
+        test_design_matrix_next = qlearn_env.create_design_matrix(qlearn_env.States, opt_action, type='next',
+                                                                  pseudo_actions=None)
+        
+        actions = np.unique(opt_action).tolist()
+    
+        # create a list of indices to indicate which action is taken
+        action_indices = [None for a in range(qlearn_env.n_actions)]
         for a in actions:
-            Q[a].fit(qlearn_env.States0[a], Z[qlearn_env.action_indices[a]])
-            Q_new[action_indices[a]] = Q[a].predict(test_design_matrix_next[a])
-        # print(np.mean((Q_new - Q_old) ** 2))
-        if (np.mean((Q_new - Q_old)**2) < 1e-7):
-            break
-        Q_old = copy(Q_new)
-        # Q.fit(qlearn_env.States0, Z)
-        # Q_new = Q.predict(test_design_matrix)
-        # if (np.mean((Q_new - Q_old)**2) < 1e-7):
-        #     break
-        # Q_old = copy(Q_new)
-    # print(m)
-    return Q_new
+            action_indices[a] = np.where(opt_action.flatten() == a)[0]
+        # action_indices = [np.where(opt_action.flatten() == a)[0] for a in actions]
+        del opt_action
+        # randomly initialize Q for FQE
+        if Q0 is None:
+            Q = copy(qlearn_env.q_function_list)
+            # for a in actions:
+            #     Q[a].fit(qlearn_env.States0[a], np.zeros(shape=(len(qlearn_env.action_indices[a],))))
+        else:
+            Q = Q0
+            # initialize
+            Q.fit(qlearn_env.States0, np.zeros(Rewards_vec.shape))
+    
+        Q_old = np.ones(shape=Rewards_vec.shape) * (-999)
+        for a in actions:
+            Q_old[action_indices[a]] = Q[a].predict(test_design_matrix_next[a])
+        # Q_old = Q.predict(test_design_matrix[0])
+        Q_new = copy(Q_old)
+        min_err =np.inf
+        for m in range(max_iter):
+            Z = Rewards_vec + qlearn_env.gamma * Q_old
+            for a in actions:
+                Q[a].fit(qlearn_env.States0[a], Z[qlearn_env.action_indices[a]])
+                Q_new[action_indices[a]] = Q[a].predict(test_design_matrix_next[a])
+            err = np.mean((Q_new - Q_old) ** 2/Q_old**2)
+            
+                
+            print('m', m, err, np.mean((Q_new - Q_old) ** 2))
+            if np.abs(err - min_err)<1e-5 and early_stopping:
+                print('early stop')
+                break
+            elif err < min_err:
+                min_err = err
+            if err < 1e-7:
+                break
+            Q_old = copy(Q_new)
+
+    else:
+        if Q0 is None:
+            Q = copy(qlearn_env.q_function_list)
+        else:
+            Q = Q0
+            Q.fit(qlearn_env.States0, np.zeros(Rewards_vec.shape))
+            
+    action_init = qlearn_env.predict(qlearn_env.States[:,:2,:].reshape(qlearn_env.N, 2, -1)).opt_action.reshape(qlearn_env.N, 1)
+
+    state_init = qlearn_env.create_design_matrix(qlearn_env.States[:,:2,:].reshape(qlearn_env.N, 2, -1), 
+                                                 action_init, type='current',
+                                                 pseudo_actions=None)
+    Q_init=np.zeros(action_init.shape[0])
+        
+    for a in np.unique(action_init):
+        Q_init[np.where(action_init == a)[0]] = Q[a].predict(state_init[a])
+        # Q_init += np.sum(Q[a].predict(state_init[a]))
+        
+    return Q_init
 
 
 

@@ -2,7 +2,7 @@
 from joblib import Parallel, delayed
 import numpy as np
 from collections import namedtuple
-
+import os, pickle
 
 # %% IC
 def h_in_IC(changepoints, T, h='1'):
@@ -15,7 +15,8 @@ def h_in_IC(changepoints, T, h='1'):
         return (np.sqrt(np.sum(T - 1 - changepoints) / np.log(np.sum(T - 1 - changepoints))))
 
 
-def IC(loss, changepoints, g_index, N, T, K, C=1, loss_fun='no_scale', Kl_fun="sqrtN", h='1', C_K = 0):
+def IC(loss, changepoints, g_index, N, T, K, C=1, Kl_fun="sqrtN",
+       h='1', C_K = 0, ic_T_dynamic=0):
     '''
     Parameters
     ----------
@@ -32,6 +33,10 @@ def IC(loss, changepoints, g_index, N, T, K, C=1, loss_fun='no_scale', Kl_fun="s
     # K = len(set(g_index))
     print("Kl_fun = ", Kl_fun)
     print('K', K, 'N', N)
+    T_mean = np.mean(T - 1 - changepoints)
+    if ic_T_dynamic:
+        T = T_mean
+        
     if Kl_fun == 'log':
         Kl = K * np.log(np.sum(T - 1 - changepoints))
     elif Kl_fun == "sqrt":
@@ -40,24 +45,27 @@ def IC(loss, changepoints, g_index, N, T, K, C=1, loss_fun='no_scale', Kl_fun="s
         Kl = K * np.log(N)
     elif Kl_fun == 'Nlog(NT)/T':
         Kl = C* K* N * np.log(N*T)/T
+        print('T', T, "N * np.log(N*T)/T", N * np.log(N*T)/T)
+    elif Kl_fun == "sqrt{Nlog(NT)/T}":
+        Kl = C*K*np.sqrt(N*np.log(N*T)/T)
+        print('T', T,'np.sqrt(N*np.log(N*T)/T)',np.sqrt(N*np.log(N*T)/T))
     elif Kl_fun =="sqrtN":
         Kl = C* K* np.sqrt(N)
+    elif Kl_fun == "BIC":
+        loss = N* np.log(loss/N)
+        Kl = K * np.log(N)
     # print("kl", Kl)
     _, indicesList, occurCount = np.unique(g_index, return_index=True, return_counts=True)
     # print('c',occurCount.dot((T-1 -changepoints)[np.s_[indicesList]])/(N*T) * C * np.log(np.sum(T-1 -changepoints)))
-    if loss_fun == 'no_scale':
-        loss = loss / np.mean(T - 1 - changepoints)
-    print('loss', loss)
+    # if loss_fun == 'no_scale':
+    #     loss = loss / np.mean(T - 1 - changepoints)
+    ic=loss - Kl #+ occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C_K * h_in_IC(changepoints,
+                                                                                                          # T, h=h)
+
     # print('(T-1 -changepoints)[np.s_[indicesList]]',(T-1 -changepoints)[np.s_[indicesList]])
     # print('np.log(np.sum(T-1 -changepoints)',np.log(np.sum(T-1 -changepoints)))
-    print("ic",
-          loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C_K * h_in_IC(changepoints,
-                                                                                                         T), ', ', K,
-          '*l', Kl, ', ', C, '* h=',
-          C_K * occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * h_in_IC(changepoints, T))
-    return loss - Kl + occurCount.dot((T - 1 - changepoints)[np.s_[indicesList]]) / (N * T) * C_K * h_in_IC(changepoints,
-                                                                                                          T, h=h)
-
+    print('loss', loss, "ic", ic, ', ', K, '*l', Kl)
+    return ic
 
 def paramInIC(model, N, K, T, include_path_loss=0):
     if not include_path_loss:
@@ -84,42 +92,48 @@ def paramInIC(model, N, K, T, include_path_loss=0):
 
 
 # %% threshold in changepoint deteciton estimation
-def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
+def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01,
+                       save_path=None):
+    sample_stat=None
+    if save_path is not None:
+        data_file_name = save_path +'/sample_stat_N'+str(N)+'_kappa'+str(kappa)+'_B'+str(B)+'.dat'
+        if os.path.exists(data_file_name):
+            with open(data_file_name, "rb") as f:
+                sample_stat = pickle.load(f)
+            
+            
     def sample_by_group(condition, nB_per_group):
         random_state = condition[1]
         rng = np.random.RandomState(random_state)
         X = rng.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
-        # X = np.random.multivariate_normal(mean, cov, size=[N, kappa, nB_per_group])
         stat_max_by_u = 0.0
         for u in range(kappa - 1, 0, -1):
-            mu1 = np.mean(X[:, :u, :], axis=(0, 1))
-            mu2 = np.mean(X[:, u:, :], axis=(0, 1))
-            stat = u * (kappa - u) / (kappa ** 2) * np.array(list(map(f, mu1 - mu2)))
+            mu1 = np.sum(X[:, :u, :], axis=(0, 1))
+            mu2 = np.sum(X[:, u:, :], axis=(0, 1))
+            cusum1 = np.sqrt((kappa - u)/(N*u*kappa))*mu1 
+            cusum2 = np.sqrt(u/(N*(kappa-u)*kappa))*mu2
+            stat = np.linalg.norm(cusum1 -cusum2, ord=2, axis=-1)**2
             stat_max_by_u = np.maximum(stat, stat_max_by_u)
         return stat_max_by_u
 
-    def run_one_normal(X, u):
-        # np.random.seed(seed)
-        mu1 = np.mean(X[:, :u, :], axis=(0, 1))
-        mu2 = np.mean(X[:, u:, :], axis=(0, 1))
-        stat = u * (kappa - u) / (kappa ** 2) * np.linalg.norm(mu1 - mu2, ord=2) ** 2
-        return stat
 
     mean = np.zeros(df)
     cov = np.eye(df)
     # max number of points per group
     n_points = int(500000)
-    if N * kappa * B <= n_points:
-        X_list = np.random.multivariate_normal(mean, cov, size=[N, kappa, B])
-        sample_stat = Parallel(n_jobs=nthread)(delayed(run_one_normal)(X_list[:, :, i, :], u) for i in range(B)
-                                               for u in range(kappa - 1, 0, -1))
-    else:
-        # sample_stat = Parallel(n_jobs=nthread, backend ='threading')(delayed(run_one_normal)(np.random.multivariate_normal(mean, cov, size = [N,kappa,1]), u) for i in range(B)
-        #                                         for u in range(kappa-1, 0, -1))
+    
+    if N * kappa * B <= n_points and sample_stat is None:
+        random_states = np.random.randint(np.iinfo(np.int32).max, size=B)
+        conditions = list(zip(range(B), random_states))
+        sample_stat = Parallel(n_jobs=nthread, prefer="threads")(delayed(sample_by_group)(condition, 1) 
+                                                                 for condition in conditions)
+        if save_path is not None:
+            with open(data_file_name, "wb") as f:
+                pickle.dump(sample_stat, f)
+    elif sample_stat is None:
         # number of groups of points
         n_groups = int(np.floor(N * kappa * B / n_points))
         # for the remaining number of points
-        n_remaining_points = int(N * kappa * B - n_groups * n_points)
         # number of samples per group
         nB_per_group = max(10, int(np.floor(B / n_groups)))
         nB_remaining = B - nB_per_group * n_groups
@@ -127,20 +141,31 @@ def estimate_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01, seed=5):
         def f(x):
             return np.linalg.norm(x, ord=2) ** 2
 
-        # generate random states
-        np.random.seed(seed*kappa)
+
         random_states = np.random.randint(np.iinfo(np.int32).max, size=n_groups+1)
         conditions = list(zip(range(n_groups+1), random_states))
-        sample_stat = Parallel(n_jobs=nthread, prefer="threads")(delayed(sample_by_group)(condition, nB_per_group) for condition in conditions[:-1])
-        # print("sample_stat =", sample_stat)
+        sample_stat = Parallel(n_jobs=nthread, prefer="threads")(delayed(sample_by_group)(condition, nB_per_group) 
+                                                                 for condition in conditions[:-1])
         sample_stat = np.array(sample_stat).flatten()
         sample_stat2 = sample_by_group(conditions[-1], nB_remaining)
         sample_stat = np.concatenate([sample_stat, sample_stat2])
-
-    # sample_stat = np.max(np.array(sample_stat).reshape([B, -1]), axis = 1)
+        
+        if save_path is not None:
+            with open(data_file_name, "wb") as f:
+                pickle.dump(sample_stat, f)
+    
     threshold = np.percentile(sample_stat, (1 - alpha) * 100)
+    
+        
     return threshold, sample_stat
 
+def chi2_threshold(N, kappa, df, nthread=5, B=5000, alpha=0.01):
+    def run_one():
+        chi2_variables = np.random.chisquare(df=df, size=kappa)
+        return np.max(chi2_variables)
+    sample_stat = Parallel(n_jobs=nthread)(delayed(run_one)() for i in range(B))
+    threshold = np.percentile(sample_stat, (1 - alpha) * 100)
+    return threshold, sample_stat
 
 # %% time series clustering
 # from dtaidistance import dtw

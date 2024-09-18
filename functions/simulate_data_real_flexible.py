@@ -267,6 +267,8 @@ def simulate(system_settings, seed=0, S0 = None, T0=0, T_total=26, burnin=0,
             previous_change_point = 1
             # print('len(change_points)',len(change_points), 'change_points',change_points)
             for segment in range(len(change_points)):  # for each change point
+                if segment >0:
+                    print('!!!changed')
                 # print('sgement', segment)
                 for t in range(previous_change_point, change_points[segment]):
                     # print('t', t,', previous_change_point',previous_change_point,', change_points[',segment,']',change_points[segment])
