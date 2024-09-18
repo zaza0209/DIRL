@@ -88,6 +88,9 @@ def setpath(method, change_dir=1):
 
 # %% read in and process data
 def transform_back(x):
+    '''
+    transform the standardized data into the original scale
+    '''
     return (x*4.141009340555169 + 19.343480280896884)**3
 
 def process_data():

@@ -7,17 +7,37 @@ This repository contains the implementation for the paper "Doubly Non-homogeneou
 
 **Figure 1**: Basic building blocks with two subjects (one in each row) and a single change point. Different dynamics are represented by distinct colors.
 
-## File Overview
+## File Overview 
 
-- Folder `functions/`: This folder contains all utility Python functions used in numerical experiments including simulation and data analysis
-    - `simu_mean_detect` implements the proposed change point and cluster detection method for Non-homogeneous environment.
-    - `compute_test_statistics_separateA.py` computes the optimal policy.
-    - `evaluation.py` implements the evaluation procedure. Specifically, it contains functions for estimating the optimal policy and estimating the value of the policy using fitted-Q evaluation.
-    - `simulate_data_1d.py` generates data in 1-dimensional simulation. It contains functions to simulate data in s scenarios of different transition.
-    - `simulate_data_1d_flexible.py` generated data in 1-dimensional simulation with more flexibility.
+### `functions/` Directory
+This directory contains utility functions for the numerical experiments, including simulation and data analysis tasks:
+
+* `simu_mean_detect.py`: Implements the proposed change point and cluster detection method for non-homogeneous environments.
+* `compute_test_statistics_separateA.py`: Computes the optimal policy.
+* `evaluation.py`: Implements the evaluation procedure, including functions to estimate the optimal policy and assess its value using fitted-Q evaluation.
+* `simulate_data_1d.py`: Generates data based on the provided transition and reward functions.
+
+### `realdata_2020/` Directory
+This directory houses the platform used to analyze the IHS 2020 study, as discussed in Section 3.1 of the paper:
+
+* `realdata.py`: Detects change points and clusters in the training data, and evaluates the trained policies on testing data.
+* `create_realdata.sh`: Creates SLURM jobs to run `realdata.py`.
+* `collect_res.py` and `create_collectres.sh`: Collect and summarize results from the real data analysis.
+### `semisyn_2020/` Directory
+This directory contains the platform for the IHS simulation described in the paper. It is divided into two subdirectories:
+
+#### `offline/` (for Section 5.1)
+* `offline.py`: Simulates 3-dimensional data based on the fitted model from IHS 2020 data, incorporating the detected change points and clusters.
+* `create_offline.sh`: Creates SLURM jobs to run `offline.py`.
+* `collect_res.py` and `create_collectres.sh`: Collect and summarize results from the offline estimation.
+#### `online_value/` (for Section 5.2)
+* `run_value.py`: Estimates the value of different policies in a doubly inhomogeneous environment.
+* `create_value.sh`: Creates SLURM jobs to run `run_value.py`.
+* `collect_res.py` and `create_collectres.sh`: Collect and summarize results from the online evaluation.
 
 
-- Folder `simulations/`: This folder contains the platform that realizes the 1-dimensional simulation in the paper. Files starting with `plot` in their names contain codes to generate plots in the paper. 
+
+<!-- - Folder `simulations/`: This folder contains the platform that realizes the 1-dimensional simulation in the paper. Files starting with `plot` in their names contain codes to generate plots in the paper. 
     - Folder `final_perf/`: This folder contains the code for offline estimation in Section 5.1.1 and Section 5.1.2.
         - `run_maxiter.py` simulates 1-dimensional data with different-sign transition functions and test for double non-homogeneity. Usage:
         ```console
@@ -49,4 +69,4 @@ This repository contains the implementation for the paper "Doubly Non-homogeneou
         bash create_value.samesign.sh
         ```
    
-- Folder `output` contains raw results and corresponding figures of the simulation in the paper.
+- Folder `output` contains raw results and corresponding figures of the simulation in the paper. -->
