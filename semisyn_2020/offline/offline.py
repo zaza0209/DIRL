@@ -335,7 +335,7 @@ def evaluate(changepoints_true, g_index_true, g_index, predict, T):
     g_index : predicted group index
     predict : predicted changepoints
     '''
-    changepoint_err = np.mean(np.abs(predict - changepoints_true)/T)
+    changepoint_err = np.mean(np.abs(predict - changepoints_true)/changepoints_true) #np.mean(np.abs(predict - changepoints_true)/T)
     cluster_err = adjusted_rand_score(g_index_true, g_index)
     return changepoint_err, cluster_err
 
@@ -614,7 +614,7 @@ def main():
     runtime = datetime.now() - startTime
     print('Finished. Time: ',runtime)
     print('path', os.getcwd())
-    if init in ['tuneK_iter', "only_clusters", "only_cp", "cluster_atend", "cp_indi"]:
+    if init in ['tuneK_iter', "only_clusters", "only_cp", "cluster_atend", "cluster_atend2", "cp_indi"]:
         with open(file_name, "wb") as f:
             pickle.dump({'changepoints':cp_pred, 'clustering':g_index_pred, 
                          'cp_err':changepoint_err,'ARI':ARI,
